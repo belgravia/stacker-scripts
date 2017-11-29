@@ -44,6 +44,8 @@ for line in psl:
 	blockstarts = [int(x) for x in line[20].split(',')[:-1]]
 	found = False
 	total += 1
+	if chrom not in annotated:
+		continue
 	for transcript in annotated[chrom]:
 		astarts = annotated[chrom][transcript]['starts']  # annotated starts
 		asizes = annotated[chrom][transcript]['sizes']

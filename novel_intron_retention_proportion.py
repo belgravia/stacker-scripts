@@ -12,10 +12,12 @@ except:
 	sys.stderr.write('the out is for an annotated intron length distribution file\n')
 	sys.exit(1)
 
-def overlap(coords0, coords1, tolerance=0):  # takes two tuples of (start, end) coordinates
-	if not tolerance:
-		return coords1[0] >= coords0[0] and coords1[0] <= coords0[1] or \
-			coords1[1] >= coords0[0] and coords1[1] <= coords0[1]  # partial overlap is sufficient
+# def overlap(coords0, coords1, tolerance=0):  # takes two tuples of (start, end) coordinates
+# 	if not tolerance:
+# 		return coords1[0] >= coords0[0] and coords1[0] <= coords0[1] or \
+# 			coords1[1] >= coords0[0] and coords1[1] <= coords0[1]  # partial overlap is sufficient
+
+def overlap(coords0, coords1, tolerance):
 	return coords1[0]-tolerance <= coords0[0] and coords1[1]+tolerance >= coords0[1]  # complete coverage
 
 annotated = {}
@@ -46,69 +48,49 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 		blocksizes += [int(end) - int(start)]
 
 annotated_introns = {}
+annotated_exons = {}  #  extract all exons from transcripts, put in set to get rid of redundant exons
+ild = {}  # intron_length_distribution
 for chrom in annotated:  # extract all introns from the exon dictionary
 	for transcript in annotated[chrom]:
 		if chrom not in annotated_introns:
 			annotated_introns[chrom] = set()
+			annotated_exons[chrom] = set()
 		sizes, starts = annotated[chrom][transcript]['sizes'], annotated[chrom][transcript]['starts']
 		intron_start = starts[0]+sizes[0]
+		annotated_exons[chrom].add((starts[0], intron_start))
 		for size, start in zip(sizes[1:], starts[1:]):
 			annotated_introns[chrom].add((intron_start, start))
+			annotated_exons[chrom].add((start, start+size))
 			intron_start = start + size
 
-toremove = set()  # set of introns that have exons in another transcript that overlap
 for chrom in annotated_introns:  # remove introns for which there exist exons, can only do so after reading in all exons
 	# the only point of the annotated dictionary is so i don't have to read in the gtf twice
+	toremove = set()  # set of introns that have exons in another transcript that overlap
+	print(chrom, len(annotated_introns[chrom]), len(annotated_exons[chrom]))
 	for intron in annotated_introns[chrom]:
-		for transcript in annotated[chrom]:
-			sizes, starts = annotated[chrom][transcript]['sizes'], annotated[chrom][transcript]['starts']
-			if not overlap(annotated[chrom][transcript]['range'], intron):
-				continue
-			for size, start in zip(sizes, starts):
-				if overlap((start, start+size), intron[0], intron[1]):
-					toremove.add(intron)
+		for exon in annotated_exons[chrom]:
+			if overlap(exon, intron, 10):
+				toremove.add(intron)
+				break
+	print('removing')
 	annotated_introns[chrom] = annotated_introns[chrom] - toremove
 
 isoforms = {}
+numunique = 0
 for line in psl:
 	line = line.rstrip().split('\t')
 	chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
 	blocksizes = [int(x) for x in line[18].split(',')[:-1]]
 	blockstarts = [int(x) for x in line[20].split(',')[:-1]]
-	if chrom not in isoforms:
-		isoforms[chrom] = {}
-	isoforms[chrom][name] = {}
-	isoforms[chrom][name]['entry'] = line
-	isoforms[chrom][name]['sizes'] = blocksizes
-	isoforms[chrom][name]['starts'] = blockstarts
-	isoforms[chrom][name]['range'] = start, end
-	isoforms[chrom][name]['ir'] = False  # detection of intron retention event
 
-numunique = 0
-intron_distribution = {}
-for chrom in isoforms:
-	for iname0 in isoforms[chrom]:
-		for iname1 in annotated[chrom]:
-			if iname0 == iname1:
-				continue
-			if not overlap(isoforms[chrom][iname0]['range'], annotated[chrom][iname1]['range']):
-				continue
-			starts0, sizes0 = isoforms[chrom][iname0]['starts'], isoforms[chrom][iname0]['sizes']
-			starts1, sizes1 = annotated[chrom][iname1]['starts'], annotated[chrom][iname1]['sizes']
-			prev5 = starts1[0]+sizes1[0]  # previous 5' end of isoform1's intron
-			for start1, size1 in zip(starts1[1:], sizes1[1:]):  # change this part to be seeing if it's a unique intron
-				if start1-prev5 not in intron_distribution:
-					intron_distribution[start1-prev5] = 1
-				else:
-					intron_distribution[start1-prev5] += 1
-				for start0, size0 in zip(starts0, sizes0):
-					if start0 < prev5 + 10 and start0+size0 > start1-10:  # if isoform 0 has exon where isoform 1 has intron
-						isoforms[chrom][iname0]['ir'] = True
-						break
-				if isoforms[chrom][iname0]['ir']:
-					break
-				prev5 = start1+size1
-
+	for start1, size1 in zip(blockstarts, blocksizes):
+		if chrom not in annotated_introns:
+			continue
+		for intron in annotated_introns[chrom]:
+			if overlap((start1, start1+size1), intron, 10):
+				numunique += 1
+				annotated_introns[chrom].remove(intron)
+				break
 
 sys.stderr.write('# novel introns: {}\n'.format(numunique))
 

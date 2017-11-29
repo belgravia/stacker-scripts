@@ -57,7 +57,8 @@ def find_nearest(pos, annotated_pos):
 	# i just thought of another way to do this analysis
 	# do a list comprehension, subtracting the blockend from all known 5' junction sites
 	# find the min of that list. use .index(). time complexity bad for large annotations,
-	# fine for the SIRVs though. will keep the existing wiggle method.
+	# fine for the SIRVs though. this is worst 'upper' number of searches.
+	# will keep the existing wiggle method.
 	wiggle = 0
 	while pos + wiggle not in annotated_pos:  # find the nearest annotated 3'
 		if wiggle == upper:
@@ -105,8 +106,8 @@ for line in psl:
 				if wiggle3_new == upper:
 					wiggle5 = find_nearest(blockend, gtf_info_3[strand][chrom][start+wiggle3])
 					if wiggle5 == upper:
-						sys.stderr.write("Junction {}{}:{}-{} matches to different annotated junctions\n".format(chrom,
-							strand, blockend, start))
+						sys.stderr.write("Junction {}{}:{}-{} matches to different annotated junctions\n".format(\
+							chrom, strand, blockend, start))
 						continue
 				else:
 					wiggle3 = wiggle3_new

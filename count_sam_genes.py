@@ -14,6 +14,8 @@ except:
 
 reads = {}  # store reads with equivalently good cigar strings
 for line in sam:
+	if line.startswith('@'):
+		continue
 	line = line.rstrip().split('\t')
 	read, transcript, cigar = line[0], line[2], line[5]
 	if read not in reads:
@@ -23,8 +25,6 @@ for line in sam:
 	else:
 		if cigar != reads[read]['cigar']:
 			reads[read]['transcript'] += [transcript]
-	# if transcript == '*':
-	# 	print(read)
 
 transcripts = {}  # counts
 for r in reads:
