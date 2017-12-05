@@ -23,7 +23,8 @@ def get_start_end(line):
 	return starts[0], starts[-1]+sizes[-1]
 
 isoforms = {}
-psl.readline()
+if '_0.' in sys.argv[1]:
+	psl.readline()
 for line in psl:
 	line = tuple(line.rstrip().split('\t'))
 	chrom = line[13]
@@ -31,7 +32,7 @@ for line in psl:
 		isoforms[chrom] = {}
 	junctions = get_junctions(line)
 	tss, tes = get_start_end(line)
-	counts = 0
+	counts = 0 if len(line) < 36 else int(line[35])
 	for i in isoforms[chrom]:  # does a similar isoform already exist
 		if junctions == isoforms[chrom][i]['junctions']:  # must have same junctions
 			if abs(tss - isoforms[chrom][i]['start']) < 15 and \
