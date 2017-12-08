@@ -35,7 +35,7 @@ for r in reads:
 			transcripts[t[0]]['counts'] = 0
 			transcripts[t[0]]['length'] = 0
 		transcripts[t[0]]['counts'] += 1
-	# else:
+	# else:  # how to deal with multiple mappers? ie more than one transcript for a read
 	# 	for i in range(len(t)):
 	# 		if t[i] not in transcripts:
 	# 			transcripts[t[i]] = {}

@@ -23,45 +23,62 @@ with open(outfilename, 'wt') as outfile:
 		if line.startswith('@'):
 			continue
 		line = line.rstrip().split('\t')
-		tname, flag, qname, pos, cigar, seq, qual = line[0], int(line[1]), line[2], int(line[3]), line[5], line[9], line[10]
-
-		matches = re.findall('([0-9]+)([A-Z])', cigar)
-		matchlen = mismatches = 0
-		blocksizes, relblockstarts = [], []
-		relstart = 0
-		for m in matches:
-			# if m[1] in ['M', 'D']:  # both matches and deletions consume reference
-				# matchlen += int(m[0])
-			num, op = int(m[0]), m[1]
-			if op == 'M':
-				blocksizes += [num]
-				relblockstarts += [relstart]
-				relstart += num
-				matchlen += num
-			elif op == 'D':
-				relstart += num
-				mismatches = 0
-
-
-		ncount = seq.count('N')
-		qsize = len(seq)
-		qstart = 0
-		qend = 0
-		if qname == '*':
+		qname, flag, tname, pos, cigar, seq, qual = line[0], int(line[1]), line[2], int(line[3]), line[5], line[9], line[10]
+		if tname == '*':
 			continue
-		tsize = chromsizes[qname]  # chromosome length
-		tstart = 0
-		tend = 0
-		strand = '-' if flag & 0x10 else '+'  # flag&0x10 is 1 when the strand is -
+		pos = pos - 1
+		matches = re.findall('([0-9]+)([A-Z])', cigar)
+		matchlen = mismatches = relstart = qstart = qconsumed = 0
+		blocksizes, relblockstarts = [], []
+		tend = pos
 		qnuminsert = 0
 		qbaseinsert = 0
 		tnuminsert = 0
 		tbaseinsert = 0  # deletion
+		qsize_backup = 0
+		for m in matches:
+			num, op = int(m[0]), m[1]
+			if op == 'M':  # consumes reference
+				blocksizes += [num]
+				relblockstarts += [relstart]
+				relstart += num
+				matchlen += num
+				tend += num
+				qconsumed += num
+				qsize_backup += num
+			elif op == 'D':  # consumes reference
+				relstart += num
+				mismatches += num
+				tend += num
+				qnuminsert += num
+			elif op == 'I':
+				qconsumed += num
+				tbaseinsert += num
+				tnuminsert += 1
+				qsize_backup += num
+			elif op == 'N':  # consumes reference
+				tend += num
+			elif op == 'S':
+				if not qstart and not matchlen:
+					qstart = num
+				qsize_backup += num
+			else:
+				if op != 'H':
+					sys.stderr.write(op + '\n')
+		qend = qconsumed + qstart
+		ncount = seq.count('N')
+		qsize = len(seq)
+		if qsize == 1:
+			qsize = qsize_backup
+		tsize = chromsizes[tname]  # chromosome length
+		tstart = pos
+		strand = '-' if flag & 0x10 else '+'  # flag&0x10 is 1 when the strand is -
 		blockstarts = [str(pos + s) for s in relblockstarts]
 		blockcount = len(blockstarts)
 		blocksizes = ','.join([str(s) for s in blocksizes]) + ','
 		relblockstarts = ','.join([str(s) for s in relblockstarts]) + ','
-		blockstarts = ','.join(blockstarts)
+		blockstarts = ','.join(blockstarts) + ','
+		mismatches = qbaseinsert = qnuminsert = tnuminsert = tbaseinsert = 0
 		writer.writerow([matchlen, mismatches, 0, ncount, qnuminsert, qbaseinsert, \
 			tnuminsert, tbaseinsert, strand, qname, qsize, qstart, qend, \
 			tname, tsize, tstart, tend, blockcount, blocksizes, relblockstarts, blockstarts])
