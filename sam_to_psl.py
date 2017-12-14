@@ -58,6 +58,7 @@ with open(outfilename, 'wt') as outfile:
 				qsize_backup += num
 			elif op == 'N':  # consumes reference
 				tend += num
+				relstart += num
 			elif op == 'S':
 				if not qstart and not matchlen:
 					qstart = num
