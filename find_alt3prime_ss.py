@@ -15,9 +15,8 @@ def bedreader(bed, junctiondict, index=0):
 		line = line.rstrip().split('\t')
 		if line[5] not in ['+', '-']:
 			continue
-		elif fiveprimeon:
-			if line[5] == '+':
-				line[1], line[2] = line[2], line[1] 			
+		elif fiveprimeon and line[5] == '+':
+			line[1], line[2] = line[2], line[1]
 		elif not fiveprimeon and line[5] == '-':
 			line[1], line[2] = line[2], line[1]  # reverse coordinates for junctions on - strand
 
@@ -54,7 +53,7 @@ with open(outfilename, 'wt') as outfile:
 						oro3p = (threeprime2, int(alljuncs[chrom][fiveprime][threeprime2][0]))
 					allothercounts[0] += alljuncs[chrom][fiveprime][threeprime2][0]
 					allothercounts[1] += alljuncs[chrom][fiveprime][threeprime2][1]
-				if sum(allothercounts) <= 1:
+				if sum(allothercounts) <= 10:
 					continue
 				ctable = [alljuncs[chrom][fiveprime][threeprime1][:2], allothercounts]
 				name = alljuncs[chrom][fiveprime][threeprime1][2]
