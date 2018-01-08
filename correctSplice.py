@@ -46,8 +46,8 @@ group.add_argument('-w', '--wiggle', type=int, required = True, help="wiggle roo
 group.add_argument('-o', '--outdir', type=str, default = '.', help="output directory")
 parser.add_argument('-m', '--mergesize', type=int, default=30,  help="merge genome alignment gaps of this size (30)")
 parser.add_argument('-n', '--novelthreshold', type=int, default=3,  help="report any novel junctions that are confirmed by at least this many reads")
-parser.add_argument('-e', '--expand', type=bool, default=False,  help="report all possible combinations of corrections for ambiguous reads")
-
+parser.add_argument('-e', '--expand', dest='expand', action='store_true',  help="report all possible combinations of corrections for ambiguous reads")
+parser.set_defaults(expand=False)
 class GpHit(object):
     """
     holds one genepred format alignment; extracts intron locations
@@ -115,13 +115,6 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
 
     """
     perfect, found = overlaps(jtree, coord, wiggle)
-    if perfect:
-        return coord
-    if len(found) == 0:
-        if anntree != '':
-            return correctCoord(chrom, coord, anntree, wiggle, outnf, outmh, side)  # search annotated junctions (anntree as jtree)
-        outnf.write("{}:{}\n".format(chrom, coord))
-        return coord
     if len(found) >1:
         outmh.write("{}:{}\n".format(chrom, coord))
         olist = []
@@ -139,7 +132,16 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
                     olist += [(f, annot_lefts[f])]
                 elif side == 'right' and f in annot_rights:
                     olist += [(f, annot_rights[f])]
+        if args.expand:
+            return [die_roll(olist)]
         return die_roll(olist)
+    if len(found) == 0:
+        if anntree != '':
+            return correctCoord(chrom, coord, anntree, wiggle, outnf, outmh, side)  # search annotated junctions (anntree as jtree)
+        outnf.write("{}:{}\n".format(chrom, coord))
+    if args.expand:
+        return [coord]
+    return coord  # perfect
     return found[0]
 
 
@@ -425,14 +427,16 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                     if args.expand:
                         cc = correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts)
                         if not expansions_lefts:
-                            expansions_lefts = cc
-                        elif len(cc) > 1:
-                            temp = []
-                            for left in cc:
-                                temp += [e + [left] for e in expansions_lefts]
-                            expansions_lefts = temp
-                        else:
-                            expansions_lefts = [e + [cc] for e in expansions_lefts]
+                            expansions_lefts = [[e] for e in cc]
+                            continue
+                        temp = []
+                        for left in cc:
+                            temp += [e + [left] for e in expansions_lefts]
+                        expansions_lefts = temp
+                        if len(cc) > 1:
+                            print(expansions_lefts)
+                        # else:
+                            # expansions_lefts = [e + cc for e in expansions_lefts]
                     else:
                         newlefts.append(correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts))
                 newrights = []
@@ -441,14 +445,16 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                     if args.expand:
                         cc = correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right', cors_ann.rights)
                         if not expansions_rights:
-                            expansions_rights = cc
-                        elif len(cc) > 1:
-                            temp = []
-                            for right in cc:
-                                temp += [e + [right] for e in expansions_rights]
-                            expansions_rights = temp
-                        else:
-                            expansions_rights = [e + [cc] for e in expansions_rights]
+                            expansions_rights = [[e] for e in cc]
+                            continue
+                        temp = []
+                        for right in cc:
+                            temp += [e + [right] for e in expansions_rights]
+                        expansions_rights = temp
+                        if len(cc) > 1:
+                            print(expansions_rights)
+                        # else:
+                            # expansions_rights = [e + cc for e in expansions_rights]
                     else:
                         newrights.append(correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right', cors_ann.rights))
                 hit.lefts = newlefts
