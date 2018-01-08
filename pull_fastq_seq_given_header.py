@@ -4,34 +4,47 @@ try:
 	header = sys.argv[1]
 	fastq = open(sys.argv[2])
 except:
-	sys.stderr.write('usage: script.py ID/partialID fastq\n')
+	sys.stderr.write('usage: script.py ID/partialID/psl fastq > output\n')
 	sys.exit(1)
 
 
-class FastAreader:
-    def __init__(self, fname=''):
-        self.fname = open(fname, 'r')
-        if not fname:
-            self.fname = sys.stdin
- 
-    def readFasta(self):
-        line = self.fname.readline()
-        while not line.startswith('>') :
-            line = self.fname.readline()
-        header = line.rstrip()
-        sequence = ''
-        for line in self.fname:
-            if line.startswith ('>'):
-                yield [header,sequence]
-                header = line.rstrip()
-                sequence = ''
+headers_keep = []
+if header[-3:] == 'psl':
+    psl = True
+    for line in open(header):
+        line = line.rstrip().split('\t')
+        headers_keep += [line[9]]
+else:
+    psl = False
 
-n=0
-found=-4
+n = 0
+if not psl:
+    found=-4
+    for line in fastq:
+    	if header in line:
+    		found=n
+    	if n < found + 4:
+    		print(line.rstrip())
+    	n += 1
+    	sys.exit()
+
+found = False
 for line in fastq:
-	if header in line:
-		found=n
-	if n < found + 4:
-		print(line.rstrip())
-	n += 1
-		
+    if n % 4 == 0:
+        line = line.rstrip().split()[0]
+        if line.startswith('@'):
+            line = line[1:]
+        if line in headers_keep:
+            found = True
+            # print(line.rstrip())
+            print('>' + line.rstrip())
+    elif n % 4 == 1 and found:
+        print(line.rstrip())   
+    elif n % 4 == 2 and found:
+        # print(line.rstrip())  # uncomment if fastq output is desired
+        pass
+    elif found:
+        # print(line.rstrip())
+        found = False
+    n += 1
+

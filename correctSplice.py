@@ -46,7 +46,7 @@ group.add_argument('-w', '--wiggle', type=int, required = True, help="wiggle roo
 group.add_argument('-o', '--outdir', type=str, default = '.', help="output directory")
 parser.add_argument('-m', '--mergesize', type=int, default=30,  help="merge genome alignment gaps of this size (30)")
 parser.add_argument('-n', '--novelthreshold', type=int, default=3,  help="report any novel junctions that are confirmed by at least this many reads")
-
+parser.add_argument('-e', '--expand', type=bool, default=False,  help="report all possible combinations of corrections for ambiguous reads")
 
 class GpHit(object):
     """
@@ -89,7 +89,6 @@ def die_roll(olist):
     """ 
     olist is a list of tuples, each tuple containing the outcome name and the frequency of that outcome
     """
-    print(olist)
     total = sum([tup[1] for tup in olist])
     r = random.randint(0, total)
     count = 0
@@ -101,44 +100,46 @@ def die_roll(olist):
         outcome = t[0]
     return outcome
 
-found_dist = {}  # distribution of lengths
-olist_dist = {}
-test = {'0':0}
-def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left'):
+def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree=''):
     """
     Compare coord (integer) to intervals in jtree. If exact integer is found, return. If integer falls within range, 
     return middle of range. If integer falls within multiple ranges, return original integer and print warning.
     if integer is not found, return original and print warning
+
+    If there are multiple hits coordinates within the wiggle room, len(found) > 1. Depending on args.expand, this
+    function will return either all the found coordinates or return a single coordinate, picked by a weighted die if
+    the coordinates are from short read junction data based on the coordinate's frequency in the short read data.
+
+    If there are no coordinates supported by short read junctions, then correctcoord will search within annotated
+    junctions if provided. 
 
     """
     perfect, found = overlaps(jtree, coord, wiggle)
     if perfect:
         return coord
     if len(found) == 0:
+        if anntree != '':
+            return correctCoord(chrom, coord, anntree, wiggle, outnf, outmh, side)  # search annotated junctions (anntree as jtree)
         outnf.write("{}:{}\n".format(chrom, coord))
         return coord
     if len(found) >1:
-        if len(found) not in found_dist:
-            found_dist[len(found)] = 0
-        found_dist[len(found)] += 1
         outmh.write("{}:{}\n".format(chrom, coord))
         olist = []
+        if args.expand:
+            return found
         for f in found:
-            f -= wiggle  # since the wiggle is added on from the overlaps function
-            k = jfreq_lefts.keys()
-            if side == 'left' and f in jfreq_lefts:  # short read support
-                olist += [(f, jfreq_lefts[f])]
-            elif side == 'right' and f in jfreq_rights:
-                olist += [(f, jfreq_rights[f])]
-            elif f in annot_lefts or f in annot_rights:
-                test['0'] += 1
-        if not olist:
-            return coord
-        if len(olist) not in olist_dist:
-            olist_dist[len(olist)] = 0
-        olist_dist[len(olist)] += 1
+            # f -= wiggle  # since the wiggle is added on from the overlaps function
+            if anntree != '':  # search within short read supported junctions
+                if side == 'left' and f in jfreq_lefts:  # short read support
+                    olist += [(f, jfreq_lefts[f])]
+                elif side == 'right' and f in jfreq_rights:
+                    olist += [(f, jfreq_rights[f])]
+            else:
+                if side == 'left' and f in annot_lefts:
+                    olist += [(f, annot_lefts[f])]
+                elif side == 'right' and f in annot_rights:
+                    olist += [(f, annot_rights[f])]
         return die_roll(olist)
-        return coord
     return found[0]
 
 
@@ -151,7 +152,7 @@ class Junctions():
         self.rights = IntervalTree()
         self.introns = set()
         self.istrands = dict()
-    def add(self, line, wiggle, jfreq_lefts='', jfreq_rights=''):
+    def add(self, line, wiggle, jfreq_lefts, jfreq_rights):
         """
            Add starts and ends as ranges in an intervaltree (faster for querying)
         """
@@ -168,9 +169,12 @@ class Junctions():
             self.lefts[leftset[i] - wiggle: leftset[i] + wiggle +1] = intron
             self.rights[rightset[i] - wiggle: rightset[i] + wiggle +1] = intron
             self.introns.add(intron)
-            if jfreq_lefts != '':
-                jfreq_lefts[leftset[i]] = int(fields[10])
-                jfreq_rights[rightset[i]] = int(fields[10]) 
+            if len(fields) < 11:
+                annot_lefts[leftset[i]] = 1
+                annot_rights[rightset[i]] = 1
+                continue
+            jfreq_lefts[leftset[i]] = int(fields[10])
+            jfreq_rights[rightset[i]] = int(fields[10])
 
     def iadd(self, strand, intron):
         """
@@ -409,21 +413,63 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                 hit = GpHit(line.strip())
                 annotIntrons.extend(hit.introns)
         # read alignment file and correct intronstarts and intron ends
+        expansions_lefts = []
+        expansions_rights = []
         alignIntrons = []
         with open(os.path.join(qdir, c + '.gp'), 'r') as f:
             for line in f:
                 hit = GpHit(line.strip())
                 newlefts = []
+                expansions_lefts = []  # a list of lists of newlefts
                 for i in hit.lefts:
-                    newlefts.append(correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left'))
+                    if args.expand:
+                        cc = correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts)
+                        if not expansions_lefts:
+                            expansions_lefts = cc
+                        elif len(cc) > 1:
+                            temp = []
+                            for left in cc:
+                                temp += [e + [left] for e in expansions_lefts]
+                            expansions_lefts = temp
+                        else:
+                            expansions_lefts = [e + [cc] for e in expansions_lefts]
+                    else:
+                        newlefts.append(correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts))
                 newrights = []
+                expansions_rights = []
                 for i in hit.rights:
-                    newrights.append(correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right'))
+                    if args.expand:
+                        cc = correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right', cors_ann.rights)
+                        if not expansions_rights:
+                            expansions_rights = cc
+                        elif len(cc) > 1:
+                            temp = []
+                            for right in cc:
+                                temp += [e + [right] for e in expansions_rights]
+                            expansions_rights = temp
+                        else:
+                            expansions_rights = [e + [cc] for e in expansions_rights]
+                    else:
+                        newrights.append(correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right', cors_ann.rights))
                 hit.lefts = newlefts
                 hit.rights = newrights
-                hit.makeIntrons()
-                alignIntrons.extend(hit.introns)
-                hit.doPrint(outgp)
+
+                qindex = 0
+                if args.expand:
+                    hit.qName += '_' + str(qindex)
+                    for leftset in expansions_lefts:
+                        for rightset in expansions_rights:
+                            hit.lefts = leftset
+                            hit.rights = rightset
+                            hit.makeIntrons()
+                            alignIntrons.extend(hit.introns)
+                            hit.doPrint(outgp)
+                            qindex += 1
+                            hit.qName = hit.qName[:-1] + str(qindex)
+                else:
+                    hit.makeIntrons()
+                    alignIntrons.extend(hit.introns)
+                    hit.doPrint(outgp)
         
         chr_seq = findChr(records, c) 
         if chr_seq == 'BAD':  # i also added this - alison
@@ -439,9 +485,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                outnv.write("{}:{}\t{}\t{}\t{}\n".format(c, i, alignIntrons.count(i), junctionIntrons.count(i), annotIntrons.count(i)))
                splicebed.write(bedline)
 
-print(found_dist)
-print(olist_dist)
-print(test)
+# print(ambann)
 shutil.rmtree(tmpdir)
 
 print textwrap.dedent('''\
