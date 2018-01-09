@@ -54,7 +54,8 @@ class GpHit(object):
     """
     def __init__(self, inline):
         fields = inline.split('\t')
-        self.printBase = ('\t').join(fields[:8])
+        # self.printBase = ('\t').join(fields[:8])
+        self.fields = fields
         self.qName, self.chrom, self.strand = map(str, fields[:3])
         self.genoStart, self.genoEnd, self.cdsStart, self.cdsEnd, self.blockCount = map(int, fields[3:8])
         self.chromStarts = fields[8].strip(',').split(',')
@@ -73,6 +74,7 @@ class GpHit(object):
         """
         Print current alignment in genePred format
         """
+        self.printBase = '\t'.join([self.qName] + self.fields[1:8])
         if self.blockCount == 1:
             ohandle.write('{}\t{},\t{},\n'.format(self.printBase, self.chromStarts[0], self.chromEnds[0]))
             return
@@ -95,9 +97,9 @@ def die_roll(olist):
     outcome = olist[0][0]
     for t in olist:
         count += t[1]
+        outcome = t[0]
         if count > r:
             return outcome
-        outcome = t[0]
     return outcome
 
 def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree=''):
@@ -115,9 +117,11 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
 
     """
     perfect, found = overlaps(jtree, coord, wiggle)
+    # if currentname[0] in nametowatch:
+        # print(found, currentname)
     if len(found) >1:
         outmh.write("{}:{}\n".format(chrom, coord))
-        olist = []
+        olist = []  # list of possible coordinate outcomes
         if args.expand:
             return found
         for f in found:
@@ -139,6 +143,7 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
         if anntree != '':
             return correctCoord(chrom, coord, anntree, wiggle, outnf, outmh, side)  # search annotated junctions (anntree as jtree)
         outnf.write("{}:{}\n".format(chrom, coord))
+        uncorrected[0] += 1
     if args.expand:
         return [coord]
     return coord  # perfect
@@ -379,6 +384,9 @@ except:
     sys.exit(1)
 
 # Per-chromosome analysis
+expanded = {}
+uncorrected = [0]
+# nametowatch = ['168d4de6-db2b-48d8-8bac-256837daa4fa_Basecall_2D', 'dec8ed9c-0fc9-4c96-a372-d71150d8a9f1_Basecall_2D', 'ffdc3fed-fdf0-479d-b375-04d67e1f0eb6_Basecall_2D']
 with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
   open(os.path.join(workdir, 'novelsplices.bed'), 'w') as splicebed, \
   open(os.path.join(workdir, 'junctions.bed'), 'w') as outbed, \
@@ -387,6 +395,8 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
   open(os.path.join(workdir, 'multihit.txt'), 'w') as outmh:
     outnv.write("junction\talignment\tRNASeq\tannotation\n")
     for c in chroms:
+        # if c != 'chr19':
+            # continue
         print >>sys.stderr, c
         cors_ann = Junctions()
         cors_short = Junctions()
@@ -423,9 +433,12 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                 hit = GpHit(line.strip())
                 newlefts = []
                 expansions_lefts = []  # a list of lists of newlefts
+                currentname = [hit.qName]
                 for i in hit.lefts:
                     if args.expand:
                         cc = correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts)
+                        # if hit.qName in nametowatch:
+                            # print(hit.qName, cc)
                         if not expansions_lefts:
                             expansions_lefts = [[e] for e in cc]
                             continue
@@ -433,10 +446,6 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                         for left in cc:
                             temp += [e + [left] for e in expansions_lefts]
                         expansions_lefts = temp
-                        if len(cc) > 1:
-                            print(expansions_lefts)
-                        # else:
-                            # expansions_lefts = [e + cc for e in expansions_lefts]
                     else:
                         newlefts.append(correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts))
                 newrights = []
@@ -451,10 +460,6 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                         for right in cc:
                             temp += [e + [right] for e in expansions_rights]
                         expansions_rights = temp
-                        if len(cc) > 1:
-                            print(expansions_rights)
-                        # else:
-                            # expansions_rights = [e + cc for e in expansions_rights]
                     else:
                         newrights.append(correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right', cors_ann.rights))
                 hit.lefts = newlefts
@@ -471,7 +476,10 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                             alignIntrons.extend(hit.introns)
                             hit.doPrint(outgp)
                             qindex += 1
-                            hit.qName = hit.qName[:-1] + str(qindex)
+                            hit.qName = hit.qName[:hit.qName.rfind('_')] + str(qindex)
+                    if qindex not in expanded:
+                        expanded[qindex] = 0
+                    expanded[qindex] += 1
                 else:
                     hit.makeIntrons()
                     alignIntrons.extend(hit.introns)
@@ -491,7 +499,9 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                outnv.write("{}:{}\t{}\t{}\t{}\n".format(c, i, alignIntrons.count(i), junctionIntrons.count(i), annotIntrons.count(i)))
                splicebed.write(bedline)
 
-# print(ambann)
+if args.expand:
+    print(expanded)
+sys.stderr.write('# splice sites with no short read/gtf annotation:{}\n'.format(uncorrected[0]))
 shutil.rmtree(tmpdir)
 
 print textwrap.dedent('''\
