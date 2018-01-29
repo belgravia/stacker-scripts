@@ -3,7 +3,7 @@
 
 '''
 Usage:
-python3 sam_to_identity.py alignment_with_MD.sam >out
+python3 sam_to_identity.py alignment_with_MD.sam out
 Takes a SAM file with MD tags and returns percent identity for each read.
 
 Output format:
@@ -23,6 +23,7 @@ for line in tlengths:
 read_transcript = {}
 
 def readSAM(inFile):
+    over100 = 0
     unaligned = 0
     for line in inFile:
         if line.startswith('@'):
@@ -42,6 +43,9 @@ def readSAM(inFile):
         if qname not in read_transcript:
             read_transcript[qname] = []
         read_transcript[qname] += [(tname, matches/sirv_sizes[tname])]
+        if matches/sirv_sizes[tname] > 1:
+            over100 += 1
+    print(over100)
         # print(line[0] + '\t' + str(identity) + '\t' + str(matches) + '\t' + str(mismatch) + '\t' + str(indel) + '\t' + target)
 
 def parseCIGAR(cstr):

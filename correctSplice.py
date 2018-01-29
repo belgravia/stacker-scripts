@@ -114,11 +114,12 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
 
     If there are no coordinates supported by short read junctions, then correctcoord will search within annotated
     junctions if provided. 
-
     """
     perfect, found = overlaps(jtree, coord, wiggle)
-    # if currentname[0] in nametowatch:
-        # print(found, currentname)
+    if perfect:
+        if args.expand:
+            return [coord]
+        return coord
     if len(found) >1:
         outmh.write("{}:{}\n".format(chrom, coord))
         olist = []  # list of possible coordinate outcomes
@@ -144,10 +145,13 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
             return correctCoord(chrom, coord, anntree, wiggle, outnf, outmh, side)  # search annotated junctions (anntree as jtree)
         outnf.write("{}:{}\n".format(chrom, coord))
         uncorrected[0] += 1
+        if args.expand:
+            return [coord]
+        return coord      
     if args.expand:
-        return [coord]
-    return coord  # perfect
+        return [found[0]]
     return found[0]
+
 
 
 class Junctions():
@@ -387,6 +391,8 @@ except:
 expanded = {}
 uncorrected = [0]
 # nametowatch = ['168d4de6-db2b-48d8-8bac-256837daa4fa_Basecall_2D', 'dec8ed9c-0fc9-4c96-a372-d71150d8a9f1_Basecall_2D', 'ffdc3fed-fdf0-479d-b375-04d67e1f0eb6_Basecall_2D']
+# namestowatch = ['5edef849-a930-420c-bd37-820f0ec0159a_Basecall_2D', 'c62339cc-ac44-48b9-8e33-feaf20088a6d_Basecall_2D', '56112f60-1a94-45f9-ba5f-7e40afab5d8d_Basecall_2D',\
+# '07bb46dc-4199-44ba-8928-a32ce5290347_Basecall_2D', '082c25c0-0f89-491f-9c04-922f7a51aaff_Basecall_2D']
 with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
   open(os.path.join(workdir, 'novelsplices.bed'), 'w') as splicebed, \
   open(os.path.join(workdir, 'junctions.bed'), 'w') as outbed, \
@@ -395,7 +401,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
   open(os.path.join(workdir, 'multihit.txt'), 'w') as outmh:
     outnv.write("junction\talignment\tRNASeq\tannotation\n")
     for c in chroms:
-        # if c != 'chr19':
+        # if c != 'chr5':
             # continue
         print >>sys.stderr, c
         cors_ann = Junctions()
@@ -425,6 +431,8 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                 hit = GpHit(line.strip())
                 annotIntrons.extend(hit.introns)
         # read alignment file and correct intronstarts and intron ends
+        # jfreq_lefts = annot_lefts # sirv-specific, comment these out if it's not the sirvs
+        # jfreq_rights = annot_rights
         expansions_lefts = []
         expansions_rights = []
         alignIntrons = []
@@ -433,12 +441,10 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                 hit = GpHit(line.strip())
                 newlefts = []
                 expansions_lefts = []  # a list of lists of newlefts
-                currentname = [hit.qName]
+                # currentname = [hit.qName]
                 for i in hit.lefts:
                     if args.expand:
                         cc = correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts)
-                        # if hit.qName in nametowatch:
-                            # print(hit.qName, cc)
                         if not expansions_lefts:
                             expansions_lefts = [[e] for e in cc]
                             continue

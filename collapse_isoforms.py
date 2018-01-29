@@ -25,6 +25,8 @@ def get_start_end(line):
 isoforms = {}
 if '_0.' in sys.argv[1]:
 	psl.readline()
+
+n = 0
 for line in psl:
 	line = tuple(line.rstrip().split('\t'))
 	chrom = line[13]
@@ -47,6 +49,9 @@ for line in psl:
 	isoforms[chrom][line]['start'] = tss
 	isoforms[chrom][line]['end'] = tes
 	isoforms[chrom][line]['counts'] = 1 + counts
+	n += 1
+	if n % 10000 == 0:
+		print(n)
 
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')

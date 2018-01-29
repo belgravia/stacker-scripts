@@ -1,15 +1,11 @@
 import sys, csv
 
 try:
-	header = sys.argv[1]
+    header = sys.argv[1]
+    fasta = sys.argv[2]
 except:
-	print('pls specify 2 arguments, an ID (or a psl with IDs) to query in a fasta file')
-	sys.exit(1)
-
-if len(sys.argv) > 2:
-	fasta = sys.argv[2]
-else:
-	fasta = '/scratch/alison/blat_aligned/2Dk700e_pass_fail.fa'
+    sys.stderr.write('script.py header/psl fasta\n')
+    sys.exit(1)
 
 class FastAreader:
     def __init__(self, fname=''):
@@ -33,21 +29,22 @@ class FastAreader:
         yield [header, sequence]
 
 
+headers_keep = []
 if header[-3:] == 'psl':
-	psl = True
+    psl = True
+    for line in open(header):
+        line = line.rstrip().split('\t')
+        headers_keep += [line[9]]
 else:
-	psl = False
-
-if psl:
-	print('havent actually implemented this yet')
-	sys.exit(1)
+    psl = False
 
 fasta = FastAreader(fasta)
-printed = False
 for head, seq in fasta.readFasta():
-	if header in head:
-		print(head)
-		print(seq)
-		printed = True
-if not printed:
-	print('maybe the fasta is wrong?')
+    if not psl and header in head:
+        print(head)
+        print(seq)
+    # elif psl and head in 
+    # sys.exit()
+
+
+

@@ -4,6 +4,7 @@ try:
 	psl = open(sys.argv[1])
 	gp = open(sys.argv[2])
 	outfilename = sys.argv[3]
+	chop = len(sys.argv) > 4
 except:
 	sys.stderr.write('usage: script.py psl_in corrected.gp pslout\n')
 	sys.exit(1)
@@ -24,10 +25,12 @@ with open(outfilename, 'wt') as outfile:
 		name, chrom, strand, txStart, txEnd, \
 			cdsStart, cdsEnd, exonCount, exonStarts, \
 			exonEnds = line.rstrip().split('\t')
-		for n in pslentries:
-			if name in n:
-				name = n
-				break
+		if name[:-2] in pslentries:
+			name = name[:-2]
+		# for n in pslentries:
+			# if name in n or n in name:
+				# name = n
+				# break
 		pslentry = pslentries[name]
 		pslentry = sorted(pslentry, key=lambda x: x[0])
 		exonStarts = exonStarts.split(',')[:-1]

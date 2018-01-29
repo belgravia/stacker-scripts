@@ -23,8 +23,8 @@ for line in sam:
 		reads[read]['cigar'] = cigar
 		reads[read]['transcript'] = [transcript]
 	else:
-		if cigar != reads[read]['cigar']:
-			reads[read]['transcript'] += [transcript]
+		# if cigar != reads[read]['cigar']:
+		reads[read]['transcript'] += [transcript]
 
 transcripts = {}  # counts
 for r in reads:
@@ -53,4 +53,7 @@ if tlengths:
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	for t in transcripts:
-		writer.writerow([t, transcripts[t]['counts'], transcripts[t]['length']])
+		if transcripts[t]['length'] == 0:
+			writer.writerow([t, transcripts[t]['counts']])
+		else:
+			writer.writerow([t, transcripts[t]['counts'], transcripts[t]['length']])

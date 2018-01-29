@@ -10,10 +10,9 @@ except:
 
 annotmin = {}
 annotpos = {}
-bad=False
 dups = 0
 geneset = set()
-for line in gtf:   # i really should write a gtf parser..
+for line in gtf:
 	if line.startswith('#'):
 		continue
 	line = line.rstrip().split('\t')
@@ -27,12 +26,10 @@ for line in gtf:   # i really should write a gtf parser..
 			annotpos[chrom] = {}
 		if start in annotpos[chrom] and gene != annotpos[chrom][start]:
 			dups += 1
-			# annotpos[chrom][start] += [gene]
 		else:
 			annotpos[chrom][start] = gene
 		if end in annotpos[chrom] and gene != annotpos[chrom][end]:
 			dups += 1
-			# annotpos[chrom][end] += [gene]
 		else:
 			annotpos[chrom][end] = gene
 	else:
@@ -47,36 +44,40 @@ for line in gtf:   # i really should write a gtf parser..
 		else:
 			annotmin[chrom][end] = gene
 
+def find_wiggle(coord, annot, annot2={}, maxdist=100):
+	""" Finds the distance between coordinate and the closest annotated pos in annot dict. """
+	wiggle = 0
+	while coord + wiggle not in annot and coord + wiggle not in annot2:
+		if wiggle == maxdist:
+			break
+		if wiggle == 0:
+			wiggle += 1
+		elif wiggle >= 0:
+			wiggle = wiggle * -1
+		else:
+			wiggle = (wiggle-1) * -1
+	return wiggle
+
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	dist = {}
-	prevline = ''
+	prevline, maxdist = '', 50
 	for line in psl:
 		line = line.rstrip().split('\t')
 		chrom  = line[13]
-		starts = [int(x) for x in line[20].split(',')[:-1]]
+		starts = [int(x) for x in line[20].split(',')[:-1]]  # block/exon starts
 		ends = [int(x) + y for x,y in zip(line[18].split(',')[:-1], starts)]
 
-		jstarts = ends[:-1]
+		jstarts = ends[:-1]  # junction/intron starts
 		jends = starts[1:]
 
-		print(chrom, starts, ends)
-		strands = []
+		strands = []  # tally of predicted strands for each junction
 		gene_candidates = []
 		for start, end in zip(jstarts, jends):
-			wiggle = 0
 			if chrom not in annotpos or chrom not in annotmin:
 				continue
-			while start + wiggle not in annotpos[chrom] and start + wiggle not in annotmin[chrom]:
-				if wiggle == 100:
-					break
-				if wiggle == 0:
-					wiggle += 1
-				elif wiggle >= 0:
-					wiggle = wiggle * -1
-				else:
-					wiggle = (wiggle-1) * -1
-			if wiggle == 100:
+			wiggle = find_wiggle(start, annotpos[chrom], annotmin[chrom], maxdist)
+			if wiggle == maxdist:
 				startstrand = '.'
 				gene = ''
 			elif start+wiggle in annotpos[chrom]:
@@ -85,21 +86,12 @@ with open(outfilename, 'wt') as outfile:
 			else:
 				startstrand = '-'
 				gene = annotmin[chrom][start+wiggle]
-			if wiggle in dist:
-				dist[wiggle] += int(line[4])
-			else:
-				dist[wiggle] = int(line[4])
-			wiggle = 0
-			while end + wiggle not in annotpos[chrom] and end + wiggle not in annotmin[chrom]:
-				if wiggle == 100:
-					break
-				if wiggle == 0:
-					wiggle += 1
-				elif wiggle >= 0:
-					wiggle = wiggle * -1
-				else:
-					wiggle = (wiggle-1) * -1
-			if wiggle == 100:
+			# if wiggle in dist:
+			# 	dist[wiggle] += int(line[4])
+			# else:
+			# 	dist[wiggle] = int(line[4])
+			wiggle = find_wiggle(end, annotpos[chrom], annotmin[chrom], maxdist)
+			if wiggle == maxdist:
 				endstrand = '.'
 			elif end+wiggle in annotpos[chrom]:
 				endstrand = '+'
@@ -110,9 +102,6 @@ with open(outfilename, 'wt') as outfile:
 			strands += [consensus]
 			gene_candidates += [gene]
 
-		if gene_candidates:
-			print(gene_candidates)
-		print('strands', strands)
 		if strands.count('+') > strands.count('-'):
 			consensus = '+'
 			gene = gene_candidates[strands.index('+')]
@@ -121,19 +110,9 @@ with open(outfilename, 'wt') as outfile:
 			gene = gene_candidates[strands.index('-')]
 		else:
 			consensus = '.'
-			gene = ''
+			gene = chrom+':'+jstarts[0]
 		line[8] = consensus
 		line[9] += '_' + gene
-		# if prevline == '':
-			# prevline = line
-			# continue
-		# elif line[:3] != prevline[:3]:
-			# writer.writerow(prevline)
-			# prevline = line
-		# else:
-			# prevline[4] = int(line[4]) + int(prevline[4])
 		writer.writerow(line)
-print(dist)
-print(dups)
-if bad:
-	print('bad')
+# print(dist)
+# print(dups)

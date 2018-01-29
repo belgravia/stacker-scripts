@@ -35,25 +35,34 @@ alljuncs = {}
 alljuncs = bedreader(bed1, alljuncs)
 alljuncs = bedreader(bed2, alljuncs, 1)
 
+ambiguous_junctions = set()
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	for chrom in alljuncs:
 		for fiveprime in alljuncs[chrom]:
 			if len(alljuncs[chrom][fiveprime]) == 1:  # if there is only one 3' end, not an alt 3' junction
 				continue
+			entries = []
 			for threeprime1 in alljuncs[chrom][fiveprime]:
-				if sum(alljuncs[chrom][fiveprime][threeprime1][:2]) <= 10:
+				if sum(alljuncs[chrom][fiveprime][threeprime1][:2]) < 10 :
 					continue
 				allothercounts = [0,0]
 				oro3p = ('', 0)  # overrepresented other 3 prime site, used to calculate distance from cryptic SS and canonical
+				ambi = False
 				for threeprime2 in alljuncs[chrom][fiveprime]:
 					if threeprime1 == threeprime2:
+						continue
+					if abs(int(threeprime1) - int(threeprime2)) < 5:
+						ambiguous_junctions.add(chrom+':'+threeprime1)
+						ambi = True
+						break
+					if abs(int(threeprime1) - int(threeprime2)) > 250:  # probably an exon skipping and not a alt 3/5' site
 						continue
 					if int(alljuncs[chrom][fiveprime][threeprime2][0]) > oro3p[1]:
 						oro3p = (threeprime2, int(alljuncs[chrom][fiveprime][threeprime2][0]))
 					allothercounts[0] += alljuncs[chrom][fiveprime][threeprime2][0]
 					allothercounts[1] += alljuncs[chrom][fiveprime][threeprime2][1]
-				if sum(allothercounts) <= 10:
+				if sum(allothercounts) <= 5 or ambi:
 					continue
 				ctable = [alljuncs[chrom][fiveprime][threeprime1][:2], allothercounts]
 				name = alljuncs[chrom][fiveprime][threeprime1][2]
@@ -61,9 +70,16 @@ with open(outfilename, 'wt') as outfile:
 					continue
 				# if ctable[0][1] > ctable[0][0]:  # this junction has more counts in the mutant
 				if chrom[0] == '-':
-					writer.writerow([chrom[1:], fiveprime, threeprime1, sps.fisher_exact(ctable)[1], 
-					chrom[0]] + ctable[0] + ctable[1] + [name] + [int(oro3p[0])-int(threeprime1)] + [oro3p[0]])
+					entries += [[chrom[1:], threprime1, fiveprime, sps.fisher_exact(ctable)[1], 
+					chrom[0]] + ctable[0] + ctable[1] + [name] + [int(oro3p[0])-int(threeprime1)] + [oro3p[0]]]
+					# writer.writerow([chrom[1:], threprime1, fiveprime, sps.fisher_exact(ctable)[1], 
+					# chrom[0]] + ctable[0] + ctable[1] + [name] + [int(oro3p[0])-int(threeprime1)] + [oro3p[0]])
 				else:
-					writer.writerow([chrom[1:], fiveprime, threeprime1, sps.fisher_exact(ctable)[1], 
-					chrom[0]] + ctable[0] + ctable[1] + [name] + [int(threeprime1)-int(oro3p[0])] + [oro3p[0]])
-
+					entries += [[chrom[1:], fiveprime, threeprime1, sps.fisher_exact(ctable)[1], 
+					chrom[0]] + ctable[0] + ctable[1] + [name] + [int(threeprime1)-int(oro3p[0])] + [oro3p[0]]]
+					# writer.writerow([chrom[1:], fiveprime, threeprime1, sps.fisher_exact(ctable)[1], 
+					# chrom[0]] + ctable[0] + ctable[1] + [name] + [int(threeprime1)-int(oro3p[0])] + [oro3p[0]])
+			entries = sorted(entries, key=lambda x: x[3])
+			print(entries)
+			writer.writerow(entries[0])
+print(len(ambiguous_junctions))
