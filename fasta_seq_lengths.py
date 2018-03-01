@@ -9,9 +9,16 @@ except:
 
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
+	seqlen = 0
 	for line in fasta:
 		line = line.rstrip()
 		if line.startswith('>'):
+			if seqlen:
+				writer.writerow([name, seqlen])
 			name = line[1:]
+			print(name)
+
+			seqlen = 0
 			continue
-		writer.writerow([name, len(line)])
+		seqlen += len(line.rstrip())
+	writer.writerow([name, seqlen])

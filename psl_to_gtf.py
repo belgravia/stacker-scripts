@@ -22,11 +22,13 @@ for line in psl:
 		gene_id = chrom
 		tid = name[name.find('-')+1:name.find('_')]
 		if len(str(tid)) == 1:
-			transcript_id = gene_id + '0' + str(tid)
+			transcript_id = gene_id + '00' + str(tid)
 		elif len(str(tid)) == 2:
+			transcript_id = gene_id + '0' + str(tid)
+		elif len(str(tid)) == 3:
 			transcript_id = gene_id + str(tid)
 		else:
-			sys.stderr.write('too many isoforms found for gene (100+)\n')
+			sys.stderr.write('too many isoforms found for gene (1000+)\n')
 			sys.exit()
 	for b in range(len(tstarts)):
 		exon_assignment = transcript_id + '_' + str(b)

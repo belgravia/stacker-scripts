@@ -38,7 +38,7 @@ print('hi')
 try:
 	psl = open(sys.argv[1])
 except:
-	print('1 required argument, a psl file to be filtered by fusion')
+	sys.stderr.write('1 required argument, a psl file to be filtered by fusion\n')
 	sys.exit(1)
 name = ''
 entries = []

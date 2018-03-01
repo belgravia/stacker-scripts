@@ -16,10 +16,12 @@ for line in gtf:
 	if line.startswith('#'):
 		continue
 	line = line.rstrip().split('\t')
-	chrom, ty, start, end, strand, gene = line[0], line[2], int(line[3]), int(line[4]), line[6], line[8].split(';')[4]
+	chrom, ty, start, end, strand, gene = line[0], line[2], int(line[3]), int(line[4]), line[6], line[8]
 	if ty != 'exon':
+		firstexon = True
 		continue
-	gene = gene[len('gene_name') + 3:-1]
+	gene = gene[gene.find('gene_id')+len('gene_id')+2:]
+	gene = gene[:gene.find('"')]
 	geneset.add(gene)
 	if strand == '+':
 		if chrom not in annotpos:
@@ -43,6 +45,7 @@ for line in gtf:
 			dups += 1
 		else:
 			annotmin[chrom][end] = gene
+	firstexon = False
 
 def find_wiggle(coord, annot, annot2={}, maxdist=100):
 	""" Finds the distance between coordinate and the closest annotated pos in annot dict. """
@@ -71,8 +74,14 @@ with open(outfilename, 'wt') as outfile:
 		jstarts = ends[:-1]  # junction/intron starts
 		jends = starts[1:]
 
+		if len(ends) == 1:
+			jstarts = starts
+			jends = ends
+
+
 		strands = []  # tally of predicted strands for each junction
 		gene_candidates = []
+		alljunctionstrands = []
 		for start, end in zip(jstarts, jends):
 			if chrom not in annotpos or chrom not in annotmin:
 				continue
@@ -100,6 +109,7 @@ with open(outfilename, 'wt') as outfile:
 
 			consensus = startstrand if startstrand == endstrand else '.'
 			strands += [consensus]
+			alljunctionstrands += [startstrand, endstrand]
 			gene_candidates += [gene]
 
 		if strands.count('+') > strands.count('-'):
@@ -109,8 +119,17 @@ with open(outfilename, 'wt') as outfile:
 			consensus = '-'
 			gene = gene_candidates[strands.index('-')]
 		else:
-			consensus = '.'
-			gene = chrom+':'+jstarts[0]
+			if alljunctionstrands.count('+') > alljunctionstrands.count('-'):
+				consensus = '+'
+			elif alljunctionstrands.count('-') < alljunctionstrands.count('+'):
+				consensus = '-'
+			else:
+				consensus = '.'
+				gene = chrom+':'+str(jstarts[0])
+
+
+
+
 		line[8] = consensus
 		line[9] += '_' + gene
 		writer.writerow(line)

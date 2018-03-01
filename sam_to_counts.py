@@ -5,7 +5,7 @@ try:
 	tlengths = open(sys.argv[2])
 	outfilename = sys.argv[3]
 except:
-	sys.stderr.write('usage: script.py samfile table\n')
+	sys.stderr.write('usage: script.py samfile tlengths table\n')
 	sys.exit(1)
 
 transcript_lengths = {}
@@ -18,11 +18,13 @@ for line in tlengths:
 
 for line in sam:
 	if line.startswith('@'):
+		print(line)
 		continue
 	line = line.rstrip().split('\t')
 	qname, flag, tname, pos, cigar, seq, qual = line[0], int(line[1]), line[2], int(line[3]), line[5], line[9], line[10]
 	if qname not in read_transcript:
 		read_transcript[qname] = []
+	print(qname, tname)
 	matches = re.findall('([0-9]+)([A-Z])', cigar)
 	match_count = 0
 	for m in matches:

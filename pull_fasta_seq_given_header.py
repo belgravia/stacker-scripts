@@ -43,7 +43,9 @@ for head, seq in fasta.readFasta():
     if not psl and header in head:
         print(head)
         print(seq)
-    # elif psl and head in 
+    elif psl and head[1:] in headers_keep:
+        print(head)
+        print(seq)
     # sys.exit()
 
 

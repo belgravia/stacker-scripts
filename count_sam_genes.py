@@ -12,7 +12,7 @@ except:
 	sys.stderr.write('generates a file to see if there is a length bias\n')
 	sys.exit(1)
 
-reads = {}  # store reads with equivalently good cigar strings
+reads = {}
 for line in sam:
 	if line.startswith('@'):
 		continue
@@ -23,7 +23,6 @@ for line in sam:
 		reads[read]['cigar'] = cigar
 		reads[read]['transcript'] = [transcript]
 	else:
-		# if cigar != reads[read]['cigar']:
 		reads[read]['transcript'] += [transcript]
 
 transcripts = {}  # counts

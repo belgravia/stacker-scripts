@@ -47,7 +47,7 @@ for line in open(header):  # psl file
 
 
 
-    sys.exit()
+    # sys.exit()
 
 
 found = False

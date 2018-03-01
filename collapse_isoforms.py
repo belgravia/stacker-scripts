@@ -2,10 +2,10 @@ import sys, csv
 
 try:
 	psl = open(sys.argv[1])
-	minnum = int(sys.argv[2])
+	maxnum = int(sys.argv[2])
 	outfilename = sys.argv[3]
 except:
-	sys.stderr.write('usage: script.py psl threshold outfilename \n')
+	sys.stderr.write('usage: script.py psl tes/tss_threshold outfilename \n')
 	sys.exit(1)
 
 def get_junctions(line):
@@ -37,8 +37,8 @@ for line in psl:
 	counts = 0 if len(line) < 36 else int(line[35])
 	for i in isoforms[chrom]:  # does a similar isoform already exist
 		if junctions == isoforms[chrom][i]['junctions']:  # must have same junctions
-			if abs(tss - isoforms[chrom][i]['start']) < 15 and \
-				abs(tes - isoforms[chrom][i]['end']) < 15:  # tes and tss within a length
+			if abs(tss - isoforms[chrom][i]['start']) < maxnum and \
+				abs(tes - isoforms[chrom][i]['end']) < maxnum:  # tes and tss within maxnum of another isoform are considered the same
 				tss = min(tss, isoforms[chrom][i]['start'])
 				tes = max(tes, isoforms[chrom][i]['end'])
 				counts = isoforms[chrom][i]['counts']

@@ -50,8 +50,8 @@ for line in gtf:
 
 	prev_exon_end = end
 
-print(gtf_info)
-print(gtf_info_3)
+# print(gtf_info)
+# print(gtf_info_3)
 
 def find_nearest(pos, annotated_pos):
 	# i just thought of another way to do this analysis
@@ -96,8 +96,8 @@ for line in psl:
 					lost5 += 1
 				if wiggle3 == upper:
 					lost3 += 1
-				sys.stderr.write('Junction {}{}:{}-{} does not match any annotated junctions\n'.format(chrom,
-					strand, blockend, start))
+				# sys.stderr.write('Junction {}{}:{}-{} does not match any annotated junctions\n'.format(chrom,
+				# 	strand, blockend, start))
 				continue
 
 			if start + wiggle3 not in gtf_info[strand][chrom][blockend + wiggle5]:
@@ -106,8 +106,8 @@ for line in psl:
 				if wiggle3_new == upper:
 					wiggle5 = find_nearest(blockend, gtf_info_3[strand][chrom][start+wiggle3])
 					if wiggle5 == upper:
-						sys.stderr.write("Junction {}{}:{}-{} matches to different annotated junctions\n".format(\
-							chrom, strand, blockend, start))
+						# sys.stderr.write("Junction {}{}:{}-{} matches to different annotated junctions\n".format(\
+						# 	chrom, strand, blockend, start))
 						continue
 				else:
 					wiggle3 = wiggle3_new

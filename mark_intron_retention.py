@@ -11,6 +11,7 @@ try:
 		expr = open(sys.argv[4])
 	else:
 		expr = ''
+
 	if len(sys.argv) > 5:
 		allcoordsfile = sys.argv[5]
 	else:

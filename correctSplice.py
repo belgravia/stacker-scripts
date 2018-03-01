@@ -46,7 +46,8 @@ group.add_argument('-w', '--wiggle', type=int, required = True, help="wiggle roo
 group.add_argument('-o', '--outdir', type=str, default = '.', help="output directory")
 parser.add_argument('-m', '--mergesize', type=int, default=30,  help="merge genome alignment gaps of this size (30)")
 parser.add_argument('-n', '--novelthreshold', type=int, default=3,  help="report any novel junctions that are confirmed by at least this many reads")
-parser.add_argument('-e', '--expand', dest='expand', action='store_true',  help="report all possible combinations of corrections for ambiguous reads")
+parser.add_argument('-r', '--reportnovel', dest='reportnovel', action='store_true', help='report novel junctions with n supporting reads even if the novel junction is within wiggle room of an annotated junction')
+parser.add_argument('-e', '--expand', dest='expand', type=str, default='leave',  help="[leave/correct/expand/closest] leave: leave splice site uncorrected if ambiguous, correct: correct splice site to ambiguous site with probability proportional to the frequency of that site's usage, expand: report all possible combinations of corrections for ambiguous reads, closest: correct ambiguous splice site to the closer annotated site")
 parser.set_defaults(expand=False)
 class GpHit(object):
     """
@@ -117,16 +118,18 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
     """
     perfect, found = overlaps(jtree, coord, wiggle)
     if perfect:
-        if args.expand:
+        if args.expand == 'expand':
             return [coord]
         return coord
     if len(found) >1:
         outmh.write("{}:{}\n".format(chrom, coord))
         olist = []  # list of possible coordinate outcomes
-        if args.expand:
+        founddist = []  # list of distances from coord to annotated coords
+        if args.expand == 'expand':
             return found
         for f in found:
             # f -= wiggle  # since the wiggle is added on from the overlaps function
+            founddist += [(f, abs(f - coord))]
             if anntree != '':  # search within short read supported junctions
                 if side == 'left' and f in jfreq_lefts:  # short read support
                     olist += [(f, jfreq_lefts[f])]
@@ -137,18 +140,25 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
                     olist += [(f, annot_lefts[f])]
                 elif side == 'right' and f in annot_rights:
                     olist += [(f, annot_rights[f])]
-        if args.expand:
-            return [die_roll(olist)]
-        return die_roll(olist)
+        if args.expand == 'expand':
+            return [olist]# why isn't this just olist
+        elif args.expand == 'leave':
+            return coord
+        elif args.expand == 'closest':
+            founddist.sort(key = lambda x: x[1])
+            if founddist[0][1] != founddist[1][1]:  # if the coord is closer to one of the found sites
+                return founddist[0][0]
+            return coord
+        return die_roll(olist)  # 'correct'
     if len(found) == 0:
         if anntree != '':
             return correctCoord(chrom, coord, anntree, wiggle, outnf, outmh, side)  # search annotated junctions (anntree as jtree)
         outnf.write("{}:{}\n".format(chrom, coord))
         uncorrected[0] += 1
-        if args.expand:
+        if args.expand == 'expand':
             return [coord]
         return coord      
-    if args.expand:
+    if args.expand =='expand':
         return [found[0]]
     return found[0]
 
@@ -397,6 +407,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
   open(os.path.join(workdir, 'novelsplices.bed'), 'w') as splicebed, \
   open(os.path.join(workdir, 'junctions.bed'), 'w') as outbed, \
   open(os.path.join(workdir, 'novel.txt'), 'w') as outnv, \
+  open(os.path.join(workdir, 'novel_uncorrected.txt'),'w') as outnvu, \
   open(os.path.join(workdir, 'notfound.txt'), 'w') as outnf, \
   open(os.path.join(workdir, 'multihit.txt'), 'w') as outmh:
     outnv.write("junction\talignment\tRNASeq\tannotation\n")
@@ -431,11 +442,13 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                 hit = GpHit(line.strip())
                 annotIntrons.extend(hit.introns)
         # read alignment file and correct intronstarts and intron ends
-        # jfreq_lefts = annot_lefts # sirv-specific, comment these out if it's not the sirvs
-        # jfreq_rights = annot_rights
+        if args.annotations == args.junctions:
+            jfreq_lefts = annot_lefts # sirv-specific, comment these out if it's not the sirvs
+            jfreq_rights = annot_rights
         expansions_lefts = []
         expansions_rights = []
         alignIntrons = []
+        allIntrons = []
         with open(os.path.join(qdir, c + '.gp'), 'r') as f:
             for line in f:
                 hit = GpHit(line.strip())
@@ -443,7 +456,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                 expansions_lefts = []  # a list of lists of newlefts
                 # currentname = [hit.qName]
                 for i in hit.lefts:
-                    if args.expand:
+                    if args.expand == 'expand':
                         cc = correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts)
                         if not expansions_lefts:
                             expansions_lefts = [[e] for e in cc]
@@ -457,7 +470,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                 newrights = []
                 expansions_rights = []
                 for i in hit.rights:
-                    if args.expand:
+                    if args.expand == 'expand':
                         cc = correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right', cors_ann.rights)
                         if not expansions_rights:
                             expansions_rights = [[e] for e in cc]
@@ -468,11 +481,16 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                         expansions_rights = temp
                     else:
                         newrights.append(correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right', cors_ann.rights))
+
+                if args.reportnovel:
+                    hit.makeIntrons()
+                    allIntrons.extend(hit.introns)
+
                 hit.lefts = newlefts
                 hit.rights = newrights
 
                 qindex = 0
-                if args.expand:
+                if args.expand == 'expand':
                     hit.qName += '_' + str(qindex)
                     for leftset in expansions_lefts:
                         for rightset in expansions_rights:
@@ -505,7 +523,16 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                outnv.write("{}:{}\t{}\t{}\t{}\n".format(c, i, alignIntrons.count(i), junctionIntrons.count(i), annotIntrons.count(i)))
                splicebed.write(bedline)
 
-if args.expand:
+        for i in set(allIntrons):
+            alcount = allIntrons.count(i) 
+            jucount = junctionIntrons.count(i)
+            ancount = annotIntrons.count(i)
+            bedline = makeBed(c, chr_seq, i, alcount, outbed, cors_short.istrands)
+            if not ancount and alcount >= args.novelthreshold:
+               outnvu.write("{}:{}\t{}\t{}\t{}\n".format(c, i, allIntrons.count(i), junctionIntrons.count(i), annotIntrons.count(i)))
+               splicebed.write(bedline)
+
+if args.expand == 'expand':
     print(expanded)
 sys.stderr.write('# splice sites with no short read/gtf annotation:{}\n'.format(uncorrected[0]))
 shutil.rmtree(tmpdir)

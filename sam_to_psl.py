@@ -29,7 +29,7 @@ with open(outfilename, 'wt') as outfile:
 		pos = pos - 1
 		matches = re.findall('([0-9]+)([A-Z])', cigar)
 		matchlen = mismatches = relstart = qstart = qconsumed = 0
-		blocksizes, relblockstarts = [], []
+		blocksizes, relblockstarts, qstarts = [], [], []
 		tend = pos
 		qnuminsert = 0
 		qbaseinsert = 0
@@ -41,6 +41,7 @@ with open(outfilename, 'wt') as outfile:
 			if op == 'M':  # consumes reference
 				blocksizes += [num]
 				relblockstarts += [relstart]
+				qstarts += [qconsumed]
 				relstart += num
 				matchlen += num
 				tend += num
@@ -63,23 +64,28 @@ with open(outfilename, 'wt') as outfile:
 				if not qstart and not matchlen:
 					qstart = num
 				qsize_backup += num
+			elif op == 'H':
+				if not qstart and not matchlen:
+					qstart = num
+					relstart += num
+				qsize_backup += num  # technically does not consume q but useful when comparing a read's secondary alignments
 			else:
-				if op != 'H':
 					sys.stderr.write(op + '\n')
 		qend = qconsumed + qstart
 		ncount = seq.count('N')
 		qsize = len(seq)
-		if qsize == 1:
-			qsize = qsize_backup
+		# if qsize == 1:
+		qsize = qsize_backup
 		tsize = chromsizes[tname]  # chromosome length
 		tstart = pos
 		strand = '-' if flag & 0x10 else '+'  # flag&0x10 is 1 when the strand is -
 		blockstarts = [str(pos + s) for s in relblockstarts]
 		blockcount = len(blockstarts)
+		qstarts = ','.join([str(qstart + s) for s in qstarts]) + ','
 		blocksizes = ','.join([str(s) for s in blocksizes]) + ','
 		relblockstarts = ','.join([str(s) for s in relblockstarts]) + ','
 		blockstarts = ','.join(blockstarts) + ','
 		mismatches = qbaseinsert = qnuminsert = tnuminsert = tbaseinsert = 0
 		writer.writerow([matchlen, mismatches, 0, ncount, qnuminsert, qbaseinsert, \
 			tnuminsert, tbaseinsert, strand, qname, qsize, qstart, qend, \
-			tname, tsize, tstart, tend, blockcount, blocksizes, relblockstarts, blockstarts])
+			tname, tsize, tstart, tend, blockcount, blocksizes, qstarts, blockstarts])
