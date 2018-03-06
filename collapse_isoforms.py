@@ -52,7 +52,7 @@ for line in psl:
 	n += 1
 	if n % 10000 == 0:
 		print(n)
-
+# print(isoforms)
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	for chrom in isoforms:

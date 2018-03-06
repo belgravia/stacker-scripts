@@ -17,7 +17,7 @@ potential_chimeric = {}  # {read name: [entries]}
 for line in psl:
 	line = line.rstrip().split('\t')
 	readname = line[9][:line[9].find('_')]
-	if line[9] in potential_chimeric:
+	if readname in potential_chimeric:
 		potential_chimeric[readname] += [line]
 	else:
 		potential_chimeric[readname] = [line]
