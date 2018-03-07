@@ -52,3 +52,15 @@ with open(outfilename, 'wt') as outfile:
 			seq = ''
 		else:
 			seq += line
+	if chrom in psldata:
+		for entry in psldata[chrom]:
+			if fastq:
+				writer.writerow(['@'+entry[9]])
+			else:
+				writer.writerow(['>'+entry[9]])
+			pulledseq = get_sequence(entry,seq)
+			writer.writerow([pulledseq])
+			if fastq:
+				writer.writerow(['+'])
+				writer.writerow(['@'*len(pulledseq)])
+

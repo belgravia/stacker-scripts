@@ -46,12 +46,6 @@ def translate_seq(seq):
 def get_sequence(entry, seq, strand='+'):
 	blocksizes = [int(x) for x in entry[18].split(',')[:-1]]
 	blockstarts = [int(x) for x in entry[20].split(',')[:-1]]
-	if strand == '+':  # dont include the last exon per the rule
-		blocksizes = blocksizes[:-1]
-		blockstarts = blockstarts[:-1]
-	else:
-		blocksizes = blocksizes[1:]
-		blockstarts = blockstarts[1:]
 	pulledseq = ''
 	for block in range(len(blockstarts)):
 		pulledseq += seq[blockstarts[block]:blockstarts[block]+blocksizes[block]]
@@ -171,7 +165,7 @@ ptc_pos = []
 valid_transcripts = 0
 seq, chrom = '', ''
 invalid = 0
-
+noz = 0
 for line in genome:
 	line = line.rstrip()
 	if line.startswith('>'):
@@ -182,23 +176,11 @@ for line in genome:
 			for entry in psldata[chrom]:
 				pos = find_tss_pos(entry, tss)
 				if pos == -1:
-					# entry += ['NA']
-					# print('\t'.join(entry))
 					continue
-				# sys.stderr.write('{}: {} {}\n'.format(chrom, pos, entry[8]))
 				if entry[8] == '-':
-					revseq = revcomp(get_sequence(entry, seq, '-'))
-					protrev = seq_to_longest_prot(revseq)
-					bestprot = protrev[0]
-					# bestprot = prot[0] if prot[1] > protrev[1] else protrev[0]
-
 					revseq = revcomp(get_sequence_after_pos(entry, seq, pos, '-'))
 					bestprot = translate_seq(revseq)
 				elif entry[8] == '+':
-					forseq = get_sequence(entry, seq)
-					protfor = seq_to_longest_prot(forseq)
-					bestprot = protfor[0]
-
 					forseq = get_sequence_after_pos(entry, seq, pos-1)
 					bestprot = translate_seq(forseq)
 				elif entry[8] == '.':
@@ -216,27 +198,25 @@ for line in genome:
 					continue
 				if not bestprot or bestprot[0] != 'M':
 					invalid += 1
-					# print('invalid')
 					continue
 				valid_transcripts += 1
 				bestprot = bestprot[bestprot.find('M'):]
 				protquery = bestprot[:-(55/3)]
-				entry += [bestprot]
-				if 'Z' not in protquery:
-					print('\t'.join(entry+['0']))
-					continue
-				print('\t'.join(entry+['1']))
-				ptc_pos += [bestprot]
-				# ptc_pos += [len(pulledseq) - bestprot.find('Z') * 3]
-			# break  # what is this break for... ?
+				if 'Z' not in bestprot:
+					# sys.stderr.write(bestprot+'\n')
+					noz += 1
+					entry += [str(0)]
+				else:
+					entry += [str(len(bestprot[bestprot.find('Z'):]))]
+				print('\t'.join(entry))
 		chrom = line[1:]
 		seq = ''
 	else:
 		seq += line
 
 sys.stderr.write('# with no M: ' + str(invalid)+'\n')
+sys.stderr.write('# with no Z: ' + str(noz)+'\n')
 sys.stderr.write('valid transcripts # ' + str(valid_transcripts)+'\n')
-sys.stderr.write('nmd proportion ' + str(len(ptc_pos) / float(valid_transcripts)) + '\n')
 
 # for p in ptc_pos:
 	# print(p)
