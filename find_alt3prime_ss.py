@@ -108,7 +108,7 @@ with open(outfilename, 'wt') as outfile:
 				for threeprime2 in alljuncs[chrom][fiveprime]:
 					if threeprime1 == threeprime2:
 						continue
-					if abs(int(threeprime1) - int(threeprime2)) < 10:  # if the ss are close together -> ambiguity
+					if abs(int(threeprime1) - int(threeprime2)) < 9:  # if the ss are close together -> ambiguity
 						ambiguous_junctions.add(chrom+':'+threeprime1)
 						ambi = True
 						break

@@ -8,11 +8,12 @@ except:
 	sys.stderr.write('usage: script.py gtf genome_fa dists_outfile\n')
 	sys.exit()
 
-def first_non_gag_trimer(seq, strand, bump=0):
+def first_non_gag_trimer(seq, strand, query='CT', bump=0):
+	""" Strand is essentially the search direction. -:L->R, +:R->L """
 	if len(seq) < 3:
 		return -1
 	if strand == '-':
-		pos = seq.find('CT')
+		pos = seq.find(query)
 		if pos < 0:  # not found
 			return pos
 		if len(seq) <= pos+2:
@@ -21,7 +22,7 @@ def first_non_gag_trimer(seq, strand, bump=0):
 			return 101 - len(seq[pos:]) + 1
 		return first_non_gag_trimer(seq[pos+2:], strand)  # keep searching until non CTC
 	else:
-		pos = seq.rfind('AG')
+		pos = seq.rfind(query)
 		if pos < 0:
 			return pos
 		if pos == 0:
@@ -74,14 +75,28 @@ with open(outfilename, 'wt') as outfile:
 				continue
 			seq = seq.upper()
 			for tp in ss[chrom]['-']: # threeprime
-				pos = first_non_gag_trimer(seq[tp+2:tp+103], '-')
-				# print(seq[tp:tp+101], pos, strand)
+				pos = first_non_gag_trimer(seq[tp+2:tp+103], '-')  # 100 bp into intron
+				pos_other = first_non_gag_trimer(seq[tp-101:tp],'+') # 100 bp into exon
+				print(seq[tp+2:tp+103], pos, strand)
+				print(seq[tp-101:tp], pos_other, strand)
+
+				if pos_other != -1 and pos_other < pos:
+					pos = pos_other
+					toneg = True
+				else:
+					toneg = False
 				if pos >= 0:
-					print(seq[tp+2:tp+103])
+					if toneg:
+						pos = -1 * pos
+					print(pos)
 					writer.writerow([chrom, tp, pos, '-'])
+
 			for tp in ss[chrom]['+']:
-				pos = first_non_gag_trimer(seq[tp-103:tp-2], '+')
+				pos = first_non_gag_trimer(seq[tp-101:tp], '+', 'AG')
+				pos_other = first_non_gag_trimer(seq[tp+2:tp+103], '-', 'AG')
 				# print(seq[tp-101:tp], pos, '+')
+				if pos_other - tp < tp - pos:
+					pos = pos_other
 				if pos >= 0:
 					writer.writerow([chrom, tp, pos, '+'])
 			chrom = line[1:]

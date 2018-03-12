@@ -217,6 +217,3 @@ for line in genome:
 sys.stderr.write('# with no M: ' + str(invalid)+'\n')
 sys.stderr.write('# with no Z: ' + str(noz)+'\n')
 sys.stderr.write('valid transcripts # ' + str(valid_transcripts)+'\n')
-
-# for p in ptc_pos:
-	# print(p)

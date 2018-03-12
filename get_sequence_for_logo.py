@@ -5,8 +5,13 @@ try:
 	fasta = open(sys.argv[2])
 	outfilename5 = sys.argv[3]
 	outfilename3 = sys.argv[4]
+	if len(sys.argv)>5:
+		window = int(sys.argv[5])
+	else:
+		window = 10
 except:
-	sys.stderr.write('usage: script.py fishertxtfile genomefasta out5 out3\n')
+	sys.stderr.write('usage: script.py coord.txt genome.fasta out5.txt out3.txt [num_bp_around]\n')
+	sys.stderr.write('chr start end strand')
 	sys.exit(1)
 
 def revcomp(seq):
@@ -57,13 +62,13 @@ with open(outfilename3, 'wt') as outfile3, open(outfilename5, 'wt') as outfile5:
 					for lr in query[chrom][strand]:
 						for pos in query[chrom][strand][lr]:
 							if strand == '+' and lr == 'left':
-								writer5.writerow([seq[pos-10:pos+10].upper()])  # formerly pos:pos+2
+								writer5.writerow([seq[pos-window:pos+window].upper()])  # formerly pos:pos+2
 							elif strand == '+' and lr == 'right':
-								writer3.writerow([seq[pos-10:pos+10].upper()])
+								writer3.writerow([seq[pos-window:pos+window].upper()])
 							elif strand == '-' and lr == 'left':
-								writer3.writerow([revcomp(seq[pos-10:pos+10])])
+								writer3.writerow([revcomp(seq[pos-window:pos+window])])
 							else:
-								writer5.writerow([revcomp(seq[pos-10:pos+10])])
+								writer5.writerow([revcomp(seq[pos-window:pos+window])])
 			chrom = line[1:]
 		seq = line.rstrip()
 
