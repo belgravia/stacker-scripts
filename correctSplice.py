@@ -103,7 +103,7 @@ def die_roll(olist):
             return outcome
     return outcome
 
-def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree=''):
+def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree='', chr_seq='', strand='.'):
     """
     Compare coord (integer) to intervals in jtree. If exact integer is found, return. If integer falls within range, 
     return middle of range. If integer falls within multiple ranges, return original integer and print warning.
@@ -148,16 +148,20 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
             founddist.sort(key = lambda x: x[1])
             if founddist[0][1] != founddist[1][1]:  # if the coord is closer to one of the found sites
                 return founddist[0][0]
-            return coord
+            return die_roll(founddist[:2])
         return die_roll(olist)  # 'correct'
     if len(found) == 0:
         if anntree != '':
-            return correctCoord(chrom, coord, anntree, wiggle, outnf, outmh, side)  # search annotated junctions (anntree as jtree)
+            return correctCoord(chrom, coord, anntree, wiggle, outnf, outmh, side, '', chr_seq)  # search annotated junctions (anntree as jtree)
+        if args.expand == 'closest':
+            if novelValidity(chr_seq, coord, side,strand):
+                return coord
+            return False
         outnf.write("{}:{}\n".format(chrom, coord))
         uncorrected[0] += 1
         if args.expand == 'expand':
             return [coord]
-        return coord      
+        return coord
     if args.expand =='expand':
         return [found[0]]
     return found[0]
@@ -304,7 +308,7 @@ def disambiguateJcnStr(chr_seq, start, end):
     strand = '.'
 
     # extract the sequence from the chromosome
-    intron_seq = chr_seq[start-1:end]
+    intron_seq = chr_seq[start-1:end].upper()
 
     if intron_seq.startswith("GT") and intron_seq.endswith("AG"):
         strand = "+"
@@ -334,6 +338,37 @@ def disambiguateJcnStr(chr_seq, start, end):
         print >>sys.stderr, "Cannot find strand for {}-{}".format(start, end)
     return strand
 
+def novelValidity(chr_seq, start,side, strand,toprint='', chrom=''):
+    """
+    Will use splice site sequence to infer validity of splice motif
+    """
+
+
+    # extract the sequence from the chromosome
+    intron_seq = chr_seq[start-2:start+2].upper()
+    # sys.stderr.write('{} {}\n'.format(len(chr_seq),intron_seq))
+    if side == 'left':
+        if strand == '+' and intron_seq.endswith("GT"):
+            return True
+        elif strand == '-' and intron_seq.endswith('CT'):
+            return True
+        elif strand == '.' and (intron_seq.endswith("GT") or intron_seq.endswith("CT")):
+            return True
+        return False
+    if strand == '+' and intron_seq.startswith("AG"):
+        return True
+    elif strand == '-' and intron_seq.startswith('AC'):
+        return True
+    elif strand == '.' and (intron_seq.endswith("AG") or intron_seq.startswith("AC")):
+        return True
+    return False
+    # if intron_seq.endswith("GT") or intron_seq.startswith("AG"):
+    #     return True
+    # elif intron_seq.endswith("CT") or intron_seq.startswith("AC"):
+    #     return True
+    # if toprint:
+    #     print(intron_seq, start, chrom)
+    # return False
 
 def findChr(records, this_chr):
     """
@@ -350,7 +385,6 @@ def findChr(records, this_chr):
         return 'BAD'  # i changed this!! - alison
         sys.exit(1)
     return chr_seq
-
 
 # Main
 args = parser.parse_args()
@@ -449,15 +483,22 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
         expansions_rights = []
         alignIntrons = []
         allIntrons = []
+        chr_seq = findChr(records, c) 
+        if chr_seq == 'BAD':  # i also added this - alison
+            continue  
+
         with open(os.path.join(qdir, c + '.gp'), 'r') as f:
             for line in f:
                 hit = GpHit(line.strip())
                 newlefts = []
                 expansions_lefts = []  # a list of lists of newlefts
                 # currentname = [hit.qName]
+                inferredstrand = hit.strand
+                if not hit.lefts:
+                    continue
                 for i in hit.lefts:
+                    cc = correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts, chr_seq, inferredstrand)
                     if args.expand == 'expand':
-                        cc = correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts)
                         if not expansions_lefts:
                             expansions_lefts = [[e] for e in cc]
                             continue
@@ -466,12 +507,16 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                             temp += [e + [left] for e in expansions_lefts]
                         expansions_lefts = temp
                     else:
-                        newlefts.append(correctCoord(c, i, cors_short.lefts, args.wiggle, outnf, outmh, 'left', cors_ann.lefts))
+                        if not cc:
+                            break
+                        newlefts.append(cc)
+                if not cc:
+                    continue
                 newrights = []
                 expansions_rights = []
                 for i in hit.rights:
+                    cc = correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right', cors_ann.rights, chr_seq, inferredstrand)
                     if args.expand == 'expand':
-                        cc = correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right', cors_ann.rights)
                         if not expansions_rights:
                             expansions_rights = [[e] for e in cc]
                             continue
@@ -480,7 +525,11 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                             temp += [e + [right] for e in expansions_rights]
                         expansions_rights = temp
                     else:
-                        newrights.append(correctCoord(c, i, cors_short.rights, args.wiggle, outnf, outmh, 'right', cors_ann.rights))
+                        if not cc:
+                            break
+                        newrights.append(cc)
+                if not cc:
+                    continue
 
                 if args.reportnovel:
                     hit.makeIntrons()
@@ -509,9 +558,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                     alignIntrons.extend(hit.introns)
                     hit.doPrint(outgp)
         
-        chr_seq = findChr(records, c) 
-        if chr_seq == 'BAD':  # i also added this - alison
-            continue  
+
         # now for every unique junction in the alignment, count the number of supporting reads and check if the junction is present in the annotation and in the junctions file
         # Also print out every junction in bed format and check for consensus splice sites.
         for i in (set(alignIntrons)):

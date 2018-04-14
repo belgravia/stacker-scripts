@@ -3,9 +3,10 @@ import sys, csv
 try:
 	psl = open(sys.argv[1])
 	maxnum = int(sys.argv[2])
-	outfilename = sys.argv[3]
+	minsupport = int(sys.argv[3])
+	outfilename = sys.argv[4]
 except:
-	sys.stderr.write('usage: script.py psl tes/tss_threshold outfilename \n')
+	sys.stderr.write('usage: script.py psl max_tes/tss_threshold min_support outfilename \n')
 	sys.exit(1)
 
 def get_junctions(line):
@@ -24,9 +25,9 @@ def get_start_end(line):
 	sizes = [int(n) for n in line[18].split(',')[:-1]]
 	return starts[0], starts[-1]+sizes[-1]
 
-def find_best_site(sites):
+def find_best_site(sites):  # sites is a dictionary of key site and value frequency
 	total = float(sum(list(sites.values())))
-	if total < 3:
+	if total < minsupport:
 		return ''
 	nearby = dict.fromkeys(sites, 0)  # site, distance away
 	bestsite = (0, 0)
@@ -36,8 +37,8 @@ def find_best_site(sites):
 				nearby[s] += sites[s_]
 		if nearby[s] > bestsite[1]:
 			bestsite = (s, nearby[s])
-	return [bestsite]  # no alternative sites allowed. sorry :c 
-	if total - bestsite[1] < 3:  # best
+	# return [bestsite]  # no alternative sites allowed. sorry :c 
+	if total - bestsite[1] < minsupport:  # best
 		return [bestsite]
 	for s in sites:  # remove bestsite reads
 		if abs(s - bestsite[0]) <= maxnum:
@@ -45,7 +46,7 @@ def find_best_site(sites):
 	other_sites = [bestsite]
 	for s in sites:  # find other sites with sufficient coverage
 		close = False
-		if nearby[s] < 3:
+		if nearby[s] < minsupport:
 			continue
 		worseothersite = ''
 		for os in other_sites:
@@ -61,6 +62,29 @@ def find_best_site(sites):
 			other_sites += [(s, nearby[s])]  # adding
 	other_sites = sorted(other_sites, key=lambda x: x[1])[-2:]
 	return other_sites
+
+def find_best_site2(sites_tss_all, sites_tes_all):
+	""" sites is a dict of key start site and value frequency, sites_tes are for
+	associated ends and their frequencies
+	sites_tes_all = {tss: {tes: freq}}"""
+	sites_tss = find_best_site(sites_tss_all)
+	if not sites_tss:
+		return ''
+	sepairs = []
+	for tss in sites_tss:
+		specific_tes = {}  # the specific end sites associated with this tss start
+		for tss_ in sites_tes_all:
+			if abs(tss_ - tss[0]) <= maxnum:
+				for tes in sites_tes_all[tss_]:
+					if tes not in specific_tes:
+						specific_tes[tes] = 0
+					specific_tes[tes] += sites_tes_all[tss_][tes]
+		sites_tes = find_best_site(specific_tes)
+		# if len(sites_tss) > 1:
+		# 	print(tss, specific_tes, tes)
+		for tes in sites_tes:
+			sepairs += [(tss[0], tes[0], tes[1])]
+	return sepairs
 
 def edit_line(line, tss, tes, blocksize=''):
 	if blocksize:
@@ -143,19 +167,31 @@ for line in psl:
 		isoforms[chrom][junctions]['tss'] = {}
 		isoforms[chrom][junctions]['tes'] = {}
 		isoforms[chrom][junctions]['line'] = line
+		isoforms[chrom][junctions]['tss_tes'] = {}
 	if tss not in isoforms[chrom][junctions]['tss']:
-		isoforms[chrom][junctions]['tss'][tss] = 0
+		isoforms[chrom][junctions]['tss'][tss] = 0#[0, []]  # tss usage count, list of ends
+		isoforms[chrom][junctions]['tss_tes'][tss] = {}
 	isoforms[chrom][junctions]['tss'][tss] += 1
+	if tes not in isoforms[chrom][junctions]['tss_tes'][tss]:
+		isoforms[chrom][junctions]['tss_tes'][tss][tes] = 0
+	isoforms[chrom][junctions]['tss_tes'][tss][tes] += 1
 	if tes not in isoforms[chrom][junctions]['tes']:
 		isoforms[chrom][junctions]['tes'][tes] = 0
 	isoforms[chrom][junctions]['tes'][tes] += 1
 
+dist = {}
 with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	for chrom in isoforms:
 		for jset in isoforms[chrom]:
-			tss = find_best_site(isoforms[chrom][jset]['tss'])
-			tes = find_best_site(isoforms[chrom][jset]['tes'])
+			sepairs = find_best_site2(isoforms[chrom][jset]['tss'], isoforms[chrom][jset]['tss_tes'])
+			# if tss:
+			# 	print(isoforms[chrom][jset], tss)
+			# 	sys.exit()
+			# tes = find_best_site2(isoforms[chrom][jset]['tes'])
+			if len(sepairs) not in dist:
+				dist[len(sepairs)] = 0
+			dist[len(sepairs)] += 1
 			if not tes:
 				continue
 			line = isoforms[chrom][jset]['line']
@@ -165,16 +201,17 @@ with open(outfilename, 'wt') as outfile:
 			# 	if tss[1] != tes[1]:
 					# print(tss[1], tes[1],isoforms[chrom][jset]['tss'], isoforms[chrom][jset]['tes'] )
 			# else:
-			if len(tes) > 1 and len(tss) > 1:
-				print(line, tes, tss)
-			for tes_ in tes:
-				for tss_ in tss:
-					if tes_[0] < 0 or tss_[0] < 0:
-						print(tes_, tss_)
-					templine = edit_line(list(line), tss_[0], tes_[0])
-					if not templine:
-						continue
-					writer.writerow(templine + [max(tss_[1], tes_[1])])
+			# if len(tes) > 1 and len(tss) > 1:
+			# 	print(line, tes, tss)
+
+			for tss_,tes_,support in sepairs:
+				# if tes_[0] < 0 or tss_[0] < 0:
+				# 	print(tes_, tss_)
+				# print(tss_, tes_)
+				templine = edit_line(list(line), tss_, tes_)
+				if not templine:
+					continue
+				writer.writerow(templine + [support])
 	# for chrom in singleexon:
 	# 	pairs = single_exon_pairs(singleexon[chrom])
 	# 	for p in pairs:
@@ -183,7 +220,7 @@ with open(outfilename, 'wt') as outfile:
 	# 		if not templine:
 	# 			continue
 	# 		writer.writerow(templine + [freq])
-
+print(dist)
 
 
 
