@@ -99,7 +99,8 @@ with open(outfilename, 'wt') as outfile:
 				continue
 			entries = []
 			for threeprime1 in alljuncs[chrom][fiveprime]:  # for each potential cryptic ss
-				if sum(alljuncs[chrom][fiveprime][threeprime1][:2]) < 10 :  # if this ss is not really used
+				thisjunc = alljuncs[chrom][fiveprime][threeprime1][:2]
+				if thisjunc[0] < 5 and thisjunc[1]<5:  # if this ss is not really used
 					continue
 				allothercounts = [0,0]
 				oro3p = ('', 0)  # overrepresented other 3 prime site, used to calculate distance from cryptic SS
@@ -108,10 +109,10 @@ with open(outfilename, 'wt') as outfile:
 				for threeprime2 in alljuncs[chrom][fiveprime]:
 					if threeprime1 == threeprime2:
 						continue
-					if abs(int(threeprime1) - int(threeprime2)) < 9:  # if the ss are close together -> ambiguity
-						ambiguous_junctions.add(chrom+':'+threeprime1)
-						ambi = True
-						break
+					# if abs(int(threeprime1) - int(threeprime2)) < 4:  # if the ss are close together -> ambiguity
+					# 	ambiguous_junctions.add(chrom+':'+threeprime1)
+					# 	ambi = True
+					# 	break
 					if abs(int(threeprime1) - int(threeprime2)) > 200:  # likely an exon skipping and not a alt 3/5' site
 						if not farused:
 							far += 1
@@ -121,9 +122,11 @@ with open(outfilename, 'wt') as outfile:
 						oro3p = (threeprime2, int(alljuncs[chrom][fiveprime][threeprime2][0]))
 					allothercounts[0] += alljuncs[chrom][fiveprime][threeprime2][0]
 					allothercounts[1] += alljuncs[chrom][fiveprime][threeprime2][1]
-				if sum(allothercounts) <= 5 or ambi:  # if not enough alternative ss usage
+				samp1coverage = thisjunc[0]+allothercounts[0]
+				samp2coverage = thisjunc[1]+allothercounts[1]
+				if samp1coverage < 5 or samp2coverage < 5 or ambi:  # if not enough alternative ss usage
 					continue
-				ctable = [alljuncs[chrom][fiveprime][threeprime1][:2], allothercounts]
+				ctable = [thisjunc, allothercounts]
 				name = alljuncs[chrom][fiveprime][threeprime1][2]
 				if oro3p[1] == 0:
 					continue

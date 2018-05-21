@@ -203,6 +203,7 @@ with open(outfilename, 'wt') as outfile:
 			# else:
 			# if len(tes) > 1 and len(tss) > 1:
 			# 	print(line, tes, tss)
+			i = 0
 
 			for tss_,tes_,support in sepairs:
 				# if tes_[0] < 0 or tss_[0] < 0:
@@ -211,7 +212,12 @@ with open(outfilename, 'wt') as outfile:
 				templine = edit_line(list(line), tss_, tes_)
 				if not templine:
 					continue
-				writer.writerow(templine + [support])
+				if i >= 1:
+					templine[9] = templine[9]+'_'+str(i)
+					writer.writerow(templine + [support])
+				else:
+					writer.writerow(templine + [support])
+				i += 1
 	# for chrom in singleexon:
 	# 	pairs = single_exon_pairs(singleexon[chrom])
 	# 	for p in pairs:

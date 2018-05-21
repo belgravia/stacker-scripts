@@ -103,6 +103,9 @@ def die_roll(olist):
             return outcome
     return outcome
 
+correct, novels = 0, 0
+incorrect = 0
+unable = 0
 def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree='', chr_seq='', strand='.'):
     """
     Compare coord (integer) to intervals in jtree. If exact integer is found, return. If integer falls within range, 
@@ -116,8 +119,13 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
     If there are no coordinates supported by short read junctions, then correctcoord will search within annotated
     junctions if provided. 
     """
+    global correct
+    global incorrect
+    global unable
+    global novels
     perfect, found = overlaps(jtree, coord, wiggle)
     if perfect:
+        correct += 1
         if args.expand == 'expand':
             return [coord]
         return coord
@@ -128,7 +136,6 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
         if args.expand == 'expand':
             return found
         for f in found:
-            # f -= wiggle  # since the wiggle is added on from the overlaps function
             founddist += [(f, abs(f - coord))]
             if anntree != '':  # search within short read supported junctions
                 if side == 'left' and f in jfreq_lefts:  # short read support
@@ -140,8 +147,9 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
                     olist += [(f, annot_lefts[f])]
                 elif side == 'right' and f in annot_rights:
                     olist += [(f, annot_rights[f])]
+        incorrect += 1
         if args.expand == 'expand':
-            return [olist]# why isn't this just olist
+            return [olist]
         elif args.expand == 'leave':
             return coord
         elif args.expand == 'closest':
@@ -155,10 +163,13 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
             return correctCoord(chrom, coord, anntree, wiggle, outnf, outmh, side, '', chr_seq)  # search annotated junctions (anntree as jtree)
         if args.expand == 'closest':
             if novelValidity(chr_seq, coord, side,strand):
+                novels += 1
                 return coord
+            unable += 1
             return False
         outnf.write("{}:{}\n".format(chrom, coord))
         uncorrected[0] += 1
+        unable += 1
         if args.expand == 'expand':
             return [coord]
         return coord
@@ -342,11 +353,8 @@ def novelValidity(chr_seq, start,side, strand,toprint='', chrom=''):
     """
     Will use splice site sequence to infer validity of splice motif
     """
-
-
     # extract the sequence from the chromosome
     intron_seq = chr_seq[start-2:start+2].upper()
-    # sys.stderr.write('{} {}\n'.format(len(chr_seq),intron_seq))
     if side == 'left':
         if strand == '+' and intron_seq.endswith("GT"):
             return True
@@ -362,13 +370,6 @@ def novelValidity(chr_seq, start,side, strand,toprint='', chrom=''):
     elif strand == '.' and (intron_seq.endswith("AG") or intron_seq.startswith("AC")):
         return True
     return False
-    # if intron_seq.endswith("GT") or intron_seq.startswith("AG"):
-    #     return True
-    # elif intron_seq.endswith("CT") or intron_seq.startswith("AC"):
-    #     return True
-    # if toprint:
-    #     print(intron_seq, start, chrom)
-    # return False
 
 def findChr(records, this_chr):
     """
@@ -402,8 +403,8 @@ os.makedirs(tmpdir)
 
 # Convert the genome alignment psl to genepred - doing this first because it is most likely to fail
 mrnaToGene = which('mrnaToGene')
-msize = '-insertMergeSize={}'.format(args.mergesize)   # i changed this!! -alison
-queryname = args.query[args.query.rfind('/')+1:]   # i changed this!! -alison
+msize = '-insertMergeSize={}'.format(args.mergesize)
+queryname = args.query[args.query.rfind('/')+1:]
 gpgeno = '{}/{}.gp'.format(tmpdir, queryname)
 cmd = [mrnaToGene, '-noCds', msize, args.query, gpgeno]
 try:
@@ -434,9 +435,6 @@ except:
 # Per-chromosome analysis
 expanded = {}
 uncorrected = [0]
-# nametowatch = ['168d4de6-db2b-48d8-8bac-256837daa4fa_Basecall_2D', 'dec8ed9c-0fc9-4c96-a372-d71150d8a9f1_Basecall_2D', 'ffdc3fed-fdf0-479d-b375-04d67e1f0eb6_Basecall_2D']
-# namestowatch = ['5edef849-a930-420c-bd37-820f0ec0159a_Basecall_2D', 'c62339cc-ac44-48b9-8e33-feaf20088a6d_Basecall_2D', '56112f60-1a94-45f9-ba5f-7e40afab5d8d_Basecall_2D',\
-# '07bb46dc-4199-44ba-8928-a32ce5290347_Basecall_2D', '082c25c0-0f89-491f-9c04-922f7a51aaff_Basecall_2D']
 with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
   open(os.path.join(workdir, 'novelsplices.bed'), 'w') as splicebed, \
   open(os.path.join(workdir, 'junctions.bed'), 'w') as outbed, \
@@ -446,8 +444,6 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
   open(os.path.join(workdir, 'multihit.txt'), 'w') as outmh:
     outnv.write("junction\talignment\tRNASeq\tannotation\n")
     for c in chroms:
-        # if c != 'chr5':
-            # continue
         print >>sys.stderr, c
         cors_ann = Junctions()
         cors_short = Junctions()
@@ -458,7 +454,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
         annot_lefts = {}
         annot_rights = {}
         # read in junctions file
-        try:  # i added this try/except block - alison 170808
+        try:
             temp = open(os.path.join(jdir, c + '.gp'), 'r')
             temp = open(os.path.join(adir, c + '.gp'), 'r')
         except:
@@ -477,7 +473,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                 annotIntrons.extend(hit.introns)
         # read alignment file and correct intronstarts and intron ends
         if args.annotations == args.junctions:
-            jfreq_lefts = annot_lefts # sirv-specific, comment these out if it's not the sirvs
+            jfreq_lefts = annot_lefts
             jfreq_rights = annot_rights
         expansions_lefts = []
         expansions_rights = []
@@ -532,7 +528,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
                     continue
 
                 if args.reportnovel:
-                    hit.makeIntrons()
+                    hit.makeIntrons()  # all uncorrected introns
                     allIntrons.extend(hit.introns)
 
                 hit.lefts = newlefts
@@ -584,7 +580,10 @@ if args.expand == 'expand':
 sys.stderr.write('# splice sites with no short read/gtf annotation:{}\n'.format(uncorrected[0]))
 shutil.rmtree(tmpdir)
 
+print('perfect splice sites: {}, corrected splice sites: {}, novel splice support: {}, unable to be corrected: {}'.format(correct, incorrect, novels,unable))
+
 print textwrap.dedent('''\
+
 
 SUCCESS
 

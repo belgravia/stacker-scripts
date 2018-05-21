@@ -5,11 +5,15 @@ try:
 	psl = open(sys.argv[1])  # wt
 	outfilename = sys.argv[2]
 	if len(sys.argv) > 3:
-		matchedoutfile = sys.argv[3]
+		col = int(sys.argv[3])
+	else:
+		col = 25
+	if len(sys.argv) > 4:
+		matchedoutfile = sys.argv[4]
 	else:
 		matchedoutfile = ''
 except:
-	sys.stderr.write('usage: script.py psl outfilename [matchedcountoutfile]\n')
+	sys.stderr.write('usage: script.py psl outfilename [colname] [matchedcountoutfile]\n')
 	sys.exit(1)
 
 #ntn = {}  # name to name
@@ -31,13 +35,15 @@ ever = 0
 for line in psl:
 	line = line.rstrip().split('\t')
 	gene = line[9][line[9].rfind('_')+1:]
+	if gene.count('.') == 2:
+		gene = gene[:gene.rfind('.')]
 	if gene not in counts:
 		counts[gene] = {}
-	if line[25] == 'NA':
-		line[25] = 0
-	if line[26] == 'NA':
-		line[26] = 0
-	counts[gene][line[9]] = [float(line[25]), float(line[26])]
+	if line[col] == 'NA':
+		line[col] = 0
+	if line[col+1] == 'NA':
+		line[col+1] = 0
+	counts[gene][line[9]] = [float(line[col]), float(line[col+1])]
 
 if matchedoutfile:
 	with open(matchedoutfile, 'wt') as outfile:
@@ -60,7 +66,7 @@ with open(outfilename, 'wt') as outfile:
 				othercounts[0] += counts[gene][iso_][0]
 				othercounts[1] += counts[gene][iso_][1]
 			ctable = [thesecounts, othercounts]
-			if ctable[0][0] + ctable[1][0] == 0 or ctable[0][1] + ctable[1][1] == 0:
+			if ctable[0][0] + ctable[1][0] == 0 or ctable[0][1] + ctable[1][1] == 0 or not sum(ctable[1]):
 				continue
 			generes += [[gene, iso, sps.fisher_exact(ctable)[1]] + \
 						 ctable[0] + ctable[1]]
