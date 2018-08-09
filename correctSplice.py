@@ -47,8 +47,10 @@ group.add_argument('-o', '--outdir', type=str, default = '.', help="output direc
 parser.add_argument('-m', '--mergesize', type=int, default=30,  help="merge genome alignment gaps of this size (30)")
 parser.add_argument('-n', '--novelthreshold', type=int, default=3,  help="report any novel junctions that are confirmed by at least this many reads")
 parser.add_argument('-r', '--reportnovel', dest='reportnovel', action='store_true', help='report novel junctions with n supporting reads even if the novel junction is within wiggle room of an annotated junction')
-parser.add_argument('-e', '--expand', dest='expand', type=str, default='leave',  help="[leave/correct/expand/closest] leave: leave splice site uncorrected if ambiguous, correct: correct splice site to ambiguous site with probability proportional to the frequency of that site's usage, expand: report all possible combinations of corrections for ambiguous reads, closest: correct ambiguous splice site to the closer annotated site")
+parser.add_argument('-mode', '--ambiguousmode', dest='expand', type=str, default='leave',  \
+    help="[leave/correct/expand/closest] leave: leave splice site uncorrected if ambiguous, correct: correct splice site to ambiguous site with probability proportional to the frequency of that site's usage, expand: report all possible combinations of corrections for ambiguous reads, closest: correct ambiguous splice site to the closer annotated site")
 parser.set_defaults(expand=False)
+
 class GpHit(object):
     """
     holds one genepred format alignment; extracts intron locations
@@ -103,9 +105,7 @@ def die_roll(olist):
             return outcome
     return outcome
 
-correct, novels = 0, 0
-incorrect = 0
-unable = 0
+
 def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree='', chr_seq='', strand='.'):
     """
     Compare coord (integer) to intervals in jtree. If exact integer is found, return. If integer falls within range, 
@@ -123,6 +123,7 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
     global incorrect
     global unable
     global novels
+    global uncorrected
     perfect, found = overlaps(jtree, coord, wiggle)
     if perfect:
         correct += 1
@@ -168,7 +169,7 @@ def correctCoord(chrom, coord, jtree, wiggle, outnf, outmh, side='left', anntree
             unable += 1
             return False
         outnf.write("{}:{}\n".format(chrom, coord))
-        uncorrected[0] += 1
+        uncorrected += 1
         unable += 1
         if args.expand == 'expand':
             return [coord]
@@ -434,7 +435,9 @@ except:
 
 # Per-chromosome analysis
 expanded = {}
-uncorrected = [0]
+uncorrected = 0
+correct, novels = 0, 0
+incorrect, unable = 0, 0
 with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
   open(os.path.join(workdir, 'novelsplices.bed'), 'w') as splicebed, \
   open(os.path.join(workdir, 'junctions.bed'), 'w') as outbed, \
@@ -577,7 +580,7 @@ with open(os.path.join(workdir, 'corrected.gp'), 'w') as outgp, \
 
 if args.expand == 'expand':
     print(expanded)
-sys.stderr.write('# splice sites with no short read/gtf annotation:{}\n'.format(uncorrected[0]))
+sys.stderr.write('# splice sites with no short read/gtf annotation:{}\n'.format(uncorrected))
 shutil.rmtree(tmpdir)
 
 print('perfect splice sites: {}, corrected splice sites: {}, novel splice support: {}, unable to be corrected: {}'.format(correct, incorrect, novels,unable))

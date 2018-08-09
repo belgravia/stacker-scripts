@@ -5,13 +5,13 @@ try:
 	gtf = open(sys.argv[2])
 	# outfilename = sys.argv[3]
 except:
-	sys.stderr.write('usage: script.py psl gtf\n')
+	sys.stderr.write('usage: script.py psl gtf > novelisos.psl \n')
 	sys.exit(1)
 
 def get_junctions(line):
 	junctions = set()
-	starts = [int(n) for n in line[20].split(',')[:-1]]
-	sizes = [int(n) + 1 for n in line[18].split(',')[:-1]]  # add 1 for indexing pupropses
+	starts = [int(n) + 1 for n in line[20].split(',')[:-1]]
+	sizes = [int(n) - 1 for n in line[18].split(',')[:-1]]  # for indexing pupropses
 	if len(starts) == 1:
 		return
 	for b in range(len(starts)-1): # block
@@ -68,20 +68,35 @@ for line in gtf:  # extract all exons from the gtf, keep exons grouped by transc
 			# break
 		junctions = set()
 		prev_transcript = this_transcript
+	elif strand == '-':
+		junctions.add((end, prev_start))
 	else:
 		junctions.add((prev_end, start))
+	prev_start = start
 	prev_end = end
-
+annotated_juncs[chrom] += [junctions]
+# 72727687 72718952, 72719097 72708357
 novel, total = 0, 0
+# print(annotated_juncs)
+seenjunctions = {}
 for line in psl:
 	line = line.rstrip().split('\t')
 	chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
 	junctions = get_junctions(line)
+	if chrom not in seenjunctions:
+		seenjunctions[chrom] = []
+	elif junctions in seenjunctions[chrom]:
+		continue
+	seenjunctions[chrom] += [junctions]
 	# print(chrom)
-	print(junctions)
-	sys.exit()
+	# print(junctions)
 	total += 1
-	if junctions not in annotated_juncs[chrom]:
+	subset=False
+	for j in annotated_juncs[chrom]:
+		if junctions < j:
+			subset = True
+			break
+	if not subset and junctions not in annotated_juncs[chrom]:
 		print('\t'.join([str(l) for l in line]))
 		novel += 1
 sys.stderr.write('{} out of {} isoforms are novel\n'.format(novel, total))

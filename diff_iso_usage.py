@@ -35,6 +35,8 @@ ever = 0
 for line in psl:
 	line = line.rstrip().split('\t')
 	gene = line[9][line[9].rfind('_')+1:]
+	if '-' in gene:
+		gene = gene[:gene.find('-')]
 	if gene.count('.') == 2:
 		gene = gene[:gene.rfind('.')]
 	if gene not in counts:

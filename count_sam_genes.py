@@ -10,6 +10,7 @@ try:
 except:
 	sys.stderr.write('usage: script.py samfile outfilename [transcript_lengths]\n')
 	sys.stderr.write('generates a file to see if there is a length bias\n')
+	sys.stderr.write('does not count multiple mappers, consider filtering for primary alignments first\n')
 	sys.exit(1)
 
 reads = {}

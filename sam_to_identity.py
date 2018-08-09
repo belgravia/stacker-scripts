@@ -12,8 +12,12 @@ readName    identity (decimal)  #matches    #mismatch   #indel
 
 import sys
 import re, csv
+try:
+    tlengths = open(sys.argv[2])
+except:
+    sys.stderr.write('script.py filledmd.sam tx_lengths out.sam\n')
+    sys.exit()
 
-tlengths = open(sys.argv[2])
 transcript_counts = {}
 sirv_sizes = {}
 for line in tlengths:
@@ -30,22 +34,25 @@ def readSAM(inFile):
             continue
         line = line.rstrip().split('\t')
         # name : matches / (matches + mismatches + insertions + deletions)
-        if line[5] == '*':
+        if line[2] == '*':
             unaligned += 1
             continue
+        # print(line[-1])
         matches = parseMD(line[-1])
+        # except:
+            # print(line[-1])
         denominator, M, indel = parseCIGAR(line[5])
-        mismatch = M-matches
-        qname, flag, tname, pos, cigar, seq, qual = line[0], int(line[1]), line[2], int(line[3]), line[5], line[9], line[10]
+        mismatch = M - matches
+        qname, flag, tname, pos, cigar, seq, qual = line[0], int(line[1]), line[2], float(line[3]), line[5], line[9], line[10]
         if tname not in sirv_sizes:
             continue
-        identity = matches/denominator
+        identity = matches/float(denominator)
         if qname not in read_transcript:
             read_transcript[qname] = []
-        read_transcript[qname] += [(tname, matches/sirv_sizes[tname])]
+        read_transcript[qname] += [(tname, matches/float(sirv_sizes[tname]))]
         if matches/sirv_sizes[tname] > 1:
             over100 += 1
-    print(over100)
+    print(over100, unaligned)
         # print(line[0] + '\t' + str(identity) + '\t' + str(matches) + '\t' + str(mismatch) + '\t' + str(indel) + '\t' + target)
 
 def parseCIGAR(cstr):
@@ -62,7 +69,8 @@ def parseCIGAR(cstr):
     return total, M, indel
 
 def parseMD(mdstr):
-    p = re.compile(r'[actgACTG\^]')
+    p = re.compile(r'[actgnACTGN\^]')
+    # print(list(filter(None, p.split(mdstr[5:]))))
     return sum(int(x) for x in list(filter(None, p.split(mdstr[5:]))))
 
 def main():
@@ -70,10 +78,11 @@ def main():
     inFile = sys.argv[1]
     readSAM(open(inFile))
     num = 0
+    # print(read_transcript)
     for read in read_transcript:
         # print(read, read_transcript[read])
         num += 1
-        total = sum([t[1] for t in read_transcript[read]])
+        total = float(sum([t[1] for t in read_transcript[read]]))
         if total == 0:
             bad += 1
             continue

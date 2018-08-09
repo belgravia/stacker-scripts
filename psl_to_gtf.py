@@ -34,5 +34,5 @@ for line in psl:
 		exon_assignment = transcript_id + '_' + str(b)
 		endstring = 'gene_id \"{}\"; transcript_id \"{}\"; exon_assignment \"{}\";'\
 				.format(gene_id, transcript_id, exon_assignment)
-		print('\t'.join([chrom, 'Mandalorion', 'exon', str(tstarts[b]), \
+		print('\t'.join([chrom, 'FLAIR', 'exon', str(tstarts[b]), \
 			str(tstarts[b]+bsizes[b]), '.', strand, str(score), endstring]))

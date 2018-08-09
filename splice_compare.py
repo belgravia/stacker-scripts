@@ -74,17 +74,21 @@ def find_nearest(pos, annotated_pos):
 fiveprime = dict.fromkeys(range(-100, 100), 0)  # 5 prime wiggle distances
 threeprime = dict.fromkeys(range(-100, 100), 0)
 intron = dict.fromkeys(range(-100, 100), 0)
-lost5 = lost3 = 0
+nojunc = badstrand = lost5 = lost3 = 0
 if header:
 	psl.readline()
 for line in psl:
 	line = line.rstrip().split('\t')
 	chrom, strand = line[13], line[8]
 	blockstarts = [int(x) for x in line[20].split(',')[:-1]]
-	blocksizes = [int(x) for x in line[18].split(',')[:-1]]
 	if len(blockstarts) == 1:  # single exon transcript has no junctions
+		nojunc += 1
 		continue
+	blocksizes = [int(x) for x in line[18].split(',')[:-1]]
 	blockend = blockstarts[0] + blocksizes[0]
+	if strand != '+' and strand != '-':
+		badstrand += 1
+		continue
 	for i in range(1, len(blockstarts)):
 		start = blockstarts[i]
 		if start - blockend >= 60 and chrom in gtf_info[strand]:  # junction is [blockend, start) of flanking exons
@@ -100,17 +104,17 @@ for line in psl:
 				# 	strand, blockend, start))
 				continue
 
-			if start + wiggle3 not in gtf_info[strand][chrom][blockend + wiggle5]:
-				wiggle3_new = find_nearest(start, gtf_info[strand][chrom][blockend + wiggle5])
-				# remap, it is possible there is a bigger wiggle that will allow the 5' and 3' agree
-				if wiggle3_new == upper:
-					wiggle5 = find_nearest(blockend, gtf_info_3[strand][chrom][start+wiggle3])
-					if wiggle5 == upper:
-						# sys.stderr.write("Junction {}{}:{}-{} matches to different annotated junctions\n".format(\
-						# 	chrom, strand, blockend, start))
-						continue
-				else:
-					wiggle3 = wiggle3_new
+			# if start + wiggle3 not in gtf_info[strand][chrom][blockend + wiggle5]:
+			# 	wiggle3_new = find_nearest(start, gtf_info[strand][chrom][blockend + wiggle5])
+			# 	# remap, it is possible there is a bigger wiggle that will allow the 5' and 3' agree
+			# 	if wiggle3_new == upper:
+			# 		wiggle5 = find_nearest(blockend, gtf_info_3[strand][chrom][start+wiggle3])
+			# 		if wiggle5 == upper:
+			# 			# sys.stderr.write("Junction {}{}:{}-{} matches to different annotated junctions\n".format(\
+			# 			# 	chrom, strand, blockend, start))
+			# 			continue
+			# 	else:
+			# 		wiggle3 = wiggle3_new
 
 			if strand == '-':
 				wiggle5, wiggle3 = -1*wiggle3, -1*wiggle5
@@ -131,4 +135,4 @@ with open(prefix + '.intron.wiggle', 'wt') as outfile_intron, \
 		writer_i.writerow([i, intron[i]])
 		writer_5.writerow([i, fiveprime[i]])
 		writer_3.writerow([i, threeprime[i]])
-sys.stderr.write(' '.join([str(lost3), str(lost5), '\n']))
+sys.stderr.write(' '.join([str(nojunc), str(badstrand), str(lost3), str(lost5), '\n']))

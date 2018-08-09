@@ -79,7 +79,7 @@ def bedreader(bed, junctiondict, index=0):
 			junctiondict[chrom][fiveprime] = {}  # 5' end anchor
 		if threeprime not in junctiondict[chrom][fiveprime]:
 			junctiondict[chrom][fiveprime][threeprime] = [0,0, name]
-		junctiondict[chrom][fiveprime][threeprime][index] = int(count)
+		junctiondict[chrom][fiveprime][threeprime][index] = float(count)
 	return junctiondict
 
 alljuncs = {}
@@ -99,33 +99,42 @@ with open(outfilename, 'wt') as outfile:
 				continue
 			entries = []
 			for threeprime1 in alljuncs[chrom][fiveprime]:  # for each potential cryptic ss
+				
 				thisjunc = alljuncs[chrom][fiveprime][threeprime1][:2]
-				if thisjunc[0] < 5 and thisjunc[1]<5:  # if this ss is not really used
+				if thisjunc[0] < 3 and thisjunc[1]<3:# or thisjunc[0] == 0 or thisjunc[1] == 0:  # if this ss is not really used
 					continue
 				allothercounts = [0,0]
 				oro3p = ('', 0)  # overrepresented other 3 prime site, used to calculate distance from cryptic SS
 				ambi = False
 				farused = False
 				for threeprime2 in alljuncs[chrom][fiveprime]:
+					# if fiveprime == '35740823':
+					# 	print(threeprime1, threeprime2)
 					if threeprime1 == threeprime2:
 						continue
 					# if abs(int(threeprime1) - int(threeprime2)) < 4:  # if the ss are close together -> ambiguity
 					# 	ambiguous_junctions.add(chrom+':'+threeprime1)
 					# 	ambi = True
 					# 	break
+					# if fiveprime == '35740823':
+					# 	print('this')
 					if abs(int(threeprime1) - int(threeprime2)) > 200:  # likely an exon skipping and not a alt 3/5' site
 						if not farused:
 							far += 1
-							farused = True
+							farused = True  # could choose to break here
 						continue
+					# if fiveprime == '35740823':
+					# 	print('made it here')
 					if int(alljuncs[chrom][fiveprime][threeprime2][0]) > oro3p[1]:
 						oro3p = (threeprime2, int(alljuncs[chrom][fiveprime][threeprime2][0]))
 					allothercounts[0] += alljuncs[chrom][fiveprime][threeprime2][0]
-					allothercounts[1] += alljuncs[chrom][fiveprime][threeprime2][1]
+					allothercounts[1] += alljuncs[chrom][fiveprime][threeprime2][1]				
 				samp1coverage = thisjunc[0]+allothercounts[0]
 				samp2coverage = thisjunc[1]+allothercounts[1]
-				if samp1coverage < 5 or samp2coverage < 5 or ambi:  # if not enough alternative ss usage
+				if samp1coverage < 10 or samp2coverage < 10 or ambi:  # if not enough alternative ss usage
 					continue
+                                # if fiveprime == '35740823':
+                                #         print(allothercounts, thisjunc, oro3p) 
 				ctable = [thisjunc, allothercounts]
 				name = alljuncs[chrom][fiveprime][threeprime1][2]
 				if oro3p[1] == 0:
@@ -152,8 +161,13 @@ with open(outfilename, 'wt') as outfile:
 					# writer.writerow([chrom[1:], fiveprime, threeprime1, sps.fisher_exact(ctable)[1], 
 					# chrom[0]] + ctable[0] + ctable[1] + [name] + [int(threeprime1)-int(oro3p[0])] + [oro3p[0]])
 			if entries:
+				# print(entries)
+				entries = sorted(entries, key=lambda x: x[10])
 				entries = sorted(entries, key=lambda x: x[3])
-				writer.writerow(entries[0])
+				for e in entries:
+					if abs(e[10]) > 4:
+						writer.writerow(e)
+						break
 print(len(ambiguous_junctions))
 print(far)
 print(nocanonical, totalnumsites)

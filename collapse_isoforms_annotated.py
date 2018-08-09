@@ -6,12 +6,13 @@ try:
 		bed = True
 	else:
 		bed = False
-	maxnum = int(sys.argv[2])
-	minsupport = float(sys.argv[3])
-	outfilename = sys.argv[4]
+	gtf = open(sys.argv[2])
+	maxnum = int(sys.argv[3])
+	minsupport = float(sys.argv[4])
+	outfilename = sys.argv[5]
 except:
-	sys.stderr.write('usage: script.py psl max_tes/tss_threshold min_support outfilename \n')
-	sys.stderr.write('usage: script.py bed max_tes/tss_threshold min_support outfilename \n')
+	sys.stderr.write('usage: script.py psl annotation.gtf max_tes/tss_threshold min_support outfilename \n')
+	sys.stderr.write('usage: script.py bed annotation.gtf max_tes/tss_threshold min_support outfilename \n')
 	sys.stderr.write('if min_support < 1 it will be used as a percentage \n')
 	sys.exit(1)
 
@@ -42,18 +43,25 @@ def get_start_end(line):
 	sizes = [int(n) for n in line[18].split(',')[:-1]]
 	return starts[0], starts[-1]+sizes[-1]
 
-def find_best_site(sites, find_tss=True):  # sites is a dictionary of key site and value frequency
+def find_best_site(sites, annotstartschrom, find_tss=True):  # sites is a dictionary of key site and value frequency
 	total = float(sum(list(sites.values())))
 	if total < minsupport:
 		return ''
 	nearby = dict.fromkeys(sites, 0)  # site, distance away
 	bestsite = (0, 0)
+	annotsites = set()
 	for s in sites:  # calculate number of reads supporting this site within maxnum
+		for end in annotstartschrom:
+			if s <= end[1] and s >= end[0]:
+				annotsites.add((end[0]+maxnum/2,0 ))
 		for s_ in sites:
 			if abs(s - s_) <= maxnum:
 				nearby[s] += sites[s_]
 		if nearby[s] > bestsite[1]:
 			bestsite = (s, nearby[s])
+	if annotsites:
+		print(annotsites)
+		return annotsites
 	# return [bestsite]  # no alternative sites allowed. sorry :c 
 	if minsupport < 1 and minsupport > 0.5 and bestsite[1]/total >= minsupport:
 		return [bestsite]
@@ -127,11 +135,11 @@ def find_best_site(sites, find_tss=True):  # sites is a dictionary of key site a
 		other_sites = other_sites2
 	return other_sites
 
-def find_best_site2(sites_tss_all, sites_tes_all):
+def find_best_site2(sites_tss_all, sites_tes_all, annotstartschrom):
 	""" sites is a dict of key start site and value frequency, sites_tes are for
 	associated ends and their frequencies
 	sites_tes_all = {tss: {tes: freq}}"""
-	sites_tss = find_best_site(sites_tss_all, find_tss = True)
+	sites_tss = find_best_site(sites_tss_all, annotstartschrom, find_tss = True)
 	if not sites_tss:
 		return ''
 	sepairs = []
@@ -143,7 +151,7 @@ def find_best_site2(sites_tss_all, sites_tes_all):
 					if tes not in specific_tes:
 						specific_tes[tes] = 0
 					specific_tes[tes] += sites_tes_all[tss_][tes]
-		sites_tes = find_best_site(specific_tes, find_tss = False)
+		sites_tes = find_best_site(specific_tes, annotstartschrom, find_tss = False)
 		# if len(sites_tss) > 1:
 		# 	print(tss, specific_tes, tes)
 		for tes in sites_tes:
@@ -195,7 +203,7 @@ def edit_line_bed12(line, tss, tes, blocksize=''):
 	line[1] = tss
 	line[2] = tes
 	line[10] = ','.join([str(x) for x in bsizes])+','
-	line[11] = ','.join([str(x - int(line[1])) for x in bstarts])+','
+	line[11] = ','.join([str(x) - int(line[1]) for x in bstarts])+','
 	return line
 
 def single_exon_pairs(sedict):  # incomplete
@@ -223,6 +231,20 @@ def single_exon_pairs(sedict):  # incomplete
 		else:
 			tss_stack += [alltss[tssi]]
 	return pairs
+
+annotstarts = {}
+for line in gtf:
+	if line.startswith('#'):
+		continue
+	line = line.rstrip().split('\t')
+	chrom, ty, start, end, strand, gene = line[0], line[2], int(line[3]), int(line[4]), line[6], line[8]
+	if ty == 'transcript':
+		if chrom not in annotstarts:
+			annotstarts[chrom] = set()
+			# annostarts[chrom]['starts'] = set()
+			# annostarts[chrom]['ends'] = set()
+		annotstarts[chrom].add((start - maxnum/2, start+maxnum/2))
+		annotstarts[chrom].add((end - maxnum/2, end+maxnum/2))
 
 isoforms = {}
 n = 0
@@ -277,7 +299,7 @@ with open(outfilename, 'wt') as outfile:
 	writer = csv.writer(outfile, delimiter='\t')
 	for chrom in isoforms:
 		for jset in isoforms[chrom]:
-			sepairs = find_best_site2(isoforms[chrom][jset]['tss'], isoforms[chrom][jset]['tss_tes'])
+			sepairs = find_best_site2(isoforms[chrom][jset]['tss'], isoforms[chrom][jset]['tss_tes'], annotstarts[chrom])
 			# if tss:
 			# 	print(isoforms[chrom][jset], tss)
 			# 	sys.exit()
