@@ -12,7 +12,7 @@ try:
 except:
 	sys.stderr.write('usage: script.py psl max_tes/tss_threshold min_support outfilename \n')
 	sys.stderr.write('usage: script.py bed max_tes/tss_threshold min_support outfilename \n')
-	sys.stderr.write('if min_support < 1 it will be used as a percentage \n')
+	# sys.stderr.write('if min_support < 1 it will be used as a percentage of that isoform\n')
 	sys.exit(1)
 
 def get_junctions(line):
@@ -21,8 +21,7 @@ def get_junctions(line):
 	sizes = [int(n) for n in line[18].split(',')[:-1]]
 	if len(starts) == 1:
 		return
-	for b in range(len(starts)-1): # block
-		# junctions += [(starts[b]+sizes[b], starts[b+1])]
+	for b in range(len(starts)-1):
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
 	return junctions
 
@@ -33,7 +32,7 @@ def get_junctions_bed12(line):
 	sizes = [int(n) for n in line[10].split(',')[:-1]]
 	if len(starts) == 1:
 		return
-	for b in range(len(starts)-1): # block
+	for b in range(len(starts)-1):
 		junctions.add((starts[b]+sizes[b], starts[b+1]))
 	return junctions
 
@@ -42,21 +41,23 @@ def get_start_end(line):
 	sizes = [int(n) for n in line[18].split(',')[:-1]]
 	return starts[0], starts[-1]+sizes[-1]
 
-def find_best_site(sites, find_tss=True):  # sites is a dictionary of key site and value frequency
+def find_best_site(sites, find_tss=True):
+	""" Sites is a dictionary with keys being sites and values being the number of reads 
+	starting at that site. If find_tss is False, some assumptions are changed to look
+	specifically for TESs. """
 	total = float(sum(list(sites.values())))
 	if total < minsupport:
 		return ''
-	nearby = dict.fromkeys(sites, 0)  # site, distance away
-	bestsite = (0, 0)
-	for s in sites:  # calculate number of reads supporting this site within maxnum
+	nearby = dict.fromkeys(sites, 0)  # key site, value number of supporting reads within window
+	bestsite = (0, 0)  # TSS position, number of supporting reads
+	for s in sites:  # calculate number of reads supporting this site within window maxnum
 		for s_ in sites:
 			if abs(s - s_) <= maxnum:
 				nearby[s] += sites[s_]
 		if nearby[s] > bestsite[1]:
 			bestsite = (s, nearby[s])
-	# return [bestsite]  # no alternative sites allowed. sorry :c 
 	if minsupport < 1 and minsupport > 0.5 and bestsite[1]/total >= minsupport:
-		return [bestsite]
+		return [bestsite]  # 
 	elif total - bestsite[1] < minsupport:  # best
 		return [bestsite]
 	for s in sites:  # remove bestsite reads
@@ -123,7 +124,6 @@ def find_best_site(sites, find_tss=True):  # sites is a dictionary of key site a
 						other_sites2 = [other_sites2[0]]
 				else:
 					other_sites2 = other_sites2[:2]
-		# print(other_sites2)
 		other_sites = other_sites2
 	return other_sites
 
@@ -326,9 +326,3 @@ with open(outfilename, 'wt') as outfile:
 	# 			continue
 	# 		writer.writerow(templine + [freq])
 print(dist)
-
-
-
-
-
-

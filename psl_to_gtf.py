@@ -16,8 +16,15 @@ for line in psl:
 	tstarts = [int(n) for n in line[20].split(',')[:-1]]  # target starts
 	bsizes = [int(n) for n in line[18].split(',')[:-1]]  # block sizes
 	
-	gene_id = name[:name.rfind('-')]
-	transcript_id = gene_id + '_' + name[name.find('Isoform'):]
+	# gene_id = name[:name.rfind('-')] mandalorion specific
+	#transcript_id = gene_id + '_' + name[name.find('Isoform'):]
+	if 'ENSG' in name:
+		gene_id = name[name.find('ENSG'):]
+	else:
+		gene_id = name[name.find('chr'):]
+	gene_id = gene_id[:gene_id.find('_')]
+	transcript_id = name[:name.rfind('_')]	
+
 	if sirvs:
 		gene_id = chrom
 		tid = name[name.find('-')+1:name.find('_')]
