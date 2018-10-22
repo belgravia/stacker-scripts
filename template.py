@@ -20,7 +20,7 @@ def get_junctions_psl(starts, sizes):
         return junctions
 
 for line in psl:
-    # line = line.rstrip().split()
+    # line = line.rstrip().split('\t')
 
     # if not line.startswith('@'):  # sam
     #   qname, flag, tname, pos, cigar, seq, qual = line[0], int(line[1]), line[2], int(line[3]), line[5], line[9], line[10]

@@ -9,7 +9,7 @@ except:
 	sys.exit(1)
 
 
-headers_keep = []
+headers_keep = set()
 psl = header[-4:] == '.psl'
 
 n = 0
@@ -43,7 +43,7 @@ if sam:
 
 for line in open(header):  # psl file
     line = line.rstrip().split('\t')
-    headers_keep += [line[9]]
+    headers_keep.add(line[9])
 
 
 

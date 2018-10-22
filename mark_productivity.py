@@ -146,12 +146,12 @@ def find_tss_pos(entry, tss):  # tss is a dictionary
 	return max(pos_candidates)
 
 psldata = {}
-for line in psl:
-	line = line.rstrip().split('\t')
-	if line[13] in psldata:  # line[13] is chromosome
-		psldata[line[13]] += [line]
+for entry in psl:
+	entry = entry.rstrip().split('\t')
+	if entry[13] in psldata:  # line[13] is chromosome
+		psldata[entry[13]] += [entry]
 	else:
-		psldata[line[13]] = [line]
+		psldata[entry[13]] = [entry]
 
 tss = {}
 for line in gtf:
@@ -167,41 +167,31 @@ for line in gtf:
 		tss[chrom][strand] = []
 	tss[chrom][strand] += [int(start)]
 
-ptc_pos = []
+unproductive = 0
 valid_transcripts = 0
 seq, chrom = '', ''
-invalid = 0
+noM = 0
 
 for line in genome:
 	line = line.rstrip()
 	if line.startswith('>'):
 		if not chrom:
-			chrom = line[1:]
+			chrom = line.split()[0][1:]
 			continue
 		if chrom in psldata:
 			for entry in psldata[chrom]:
+				strand = entry[8]
 				pos = find_tss_pos(entry, tss)
 				if pos == -1:
-					# entry += ['NA']
 					print('\t'.join(entry+['2']))
 					continue
-				# sys.stderr.write('{}: {} {}\n'.format(chrom, pos, entry[8]))
-				if entry[8] == '-':
-					revseq = revcomp(get_sequence(entry, seq, '-'))
-					protrev = seq_to_longest_prot(revseq)
-					bestprot = protrev[0]
-					# bestprot = prot[0] if prot[1] > protrev[1] else protrev[0]
-
+				if strand == '-':
 					revseq = revcomp(get_sequence_after_pos(entry, seq, pos, '-'))
 					bestprot = translate_seq(revseq)
-				elif entry[8] == '+':
-					forseq = get_sequence(entry, seq)
-					protfor = seq_to_longest_prot(forseq)
-					bestprot = protfor[0]
-
+				elif strand == '+':
 					forseq = get_sequence_after_pos(entry, seq, pos-1)
 					bestprot = translate_seq(forseq)
-				elif entry[8] == '.':
+				elif strand == '.':
 					revseq = revcomp(get_sequence_after_pos(entry, seq, max(pos), '-'))
 					bestprotrev = translate_seq(revseq)
 					forseq = get_sequence_after_pos(entry, seq, min(pos)-1)
@@ -212,31 +202,27 @@ for line in genome:
 					else:
 						bestprot = bestprotfor
 						entry[8] = '+'
-				if not bestprot:  # maybe it's a single exon transcript
+				if not bestprot:  # single exon transcript
+					print('\t'.join(entry+['2']))  # single exon transcript, can't be assessed
 					continue
 				if not bestprot or bestprot[0] != 'M':
-					invalid += 1
-					# print('invalid')
+					noM += 1
+					print('\t'.join(entry+['2']))  # lncRNA of sorts
 					continue
 				valid_transcripts += 1
 				bestprot = bestprot[bestprot.find('M'):]
-				protquery = bestprot[:-(55/3)]
-				entry += [bestprot]
-				if 'Z' not in protquery:
-					print('\t'.join(entry+['0']))
+				protquery = bestprot[:-int(55/3)]  # everything up from N terminal to 55 nt upstream of last exon-exon nucleotide
+				if 'Z' in protquery:  # Z meaning a stop codon
+					print('\t'.join(entry+['1']))
+					unproductive += 1
 					continue
-				print('\t'.join(entry+['1']))
-				ptc_pos += [bestprot]
-				# ptc_pos += [len(pulledseq) - bestprot.find('Z') * 3]
-			# break  # what is this break for... ?
+				print('\t'.join(entry+['0']))
 		chrom = line[1:]
 		seq = ''
 	else:
 		seq += line
 
-sys.stderr.write('# with no M: ' + str(invalid)+'\n')
-sys.stderr.write('valid transcripts # ' + str(valid_transcripts)+'\n')
-sys.stderr.write('nmd proportion ' + str(len(ptc_pos) / float(valid_transcripts)) + '\n')
+# sys.stderr.write('# reads with no M: ' + str(noM)+'\n')
+# sys.stderr.write('valid transcripts # ' + str(valid_transcripts)+'\n')
+sys.stderr.write('Unproductive proportion estimate ' + str(unproductive / float(valid_transcripts)) + '\n')
 
-# for p in ptc_pos:
-	# print(p)

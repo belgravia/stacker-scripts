@@ -2,12 +2,13 @@ import sys, csv
 
 try:
 	psl = open(sys.argv[1])
-	if len(sys.argv) > 2:
+	if len(sys.argv) > 2 and sys.argv[2] == 'sirv':
 		sirvs = True
 	else:
 		sirvs = False
 except:
-	sys.stderr.write('usage: script.py pslfile [sirvs?] > outfilename\n')
+	sys.stderr.write('usage: script.py pslfile > outfile.gtf \n')
+	sys.stderr.write('assumes line name is transcript and gene id separated by _\n')
 	sys.exit(1)
 
 for line in psl:
@@ -20,9 +21,12 @@ for line in psl:
 	#transcript_id = gene_id + '_' + name[name.find('Isoform'):]
 	if 'ENSG' in name:
 		gene_id = name[name.find('ENSG'):]
-	else:
+	elif 'chr' in name:
 		gene_id = name[name.find('chr'):]
-	gene_id = gene_id[:gene_id.find('_')]
+	else:
+		gene_id = name[name.find('_')+1:]
+	if '-' in gene_id:
+		gene_id = gene_id[:gene_id.find('-')]
 	transcript_id = name[:name.rfind('_')]	
 
 	if sirvs:
@@ -35,8 +39,9 @@ for line in psl:
 		elif len(str(tid)) == 3:
 			transcript_id = gene_id + str(tid)
 		else:
-			sys.stderr.write('too many isoforms found for gene (1000+)\n')
+			sys.stderr.write('Too many isoforms found for gene (1000+)\n')
 			sys.exit()
+
 	for b in range(len(tstarts)):
 		exon_assignment = transcript_id + '_' + str(b)
 		endstring = 'gene_id \"{}\"; transcript_id \"{}\"; exon_assignment \"{}\";'\

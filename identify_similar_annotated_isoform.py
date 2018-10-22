@@ -3,9 +3,9 @@ import sys, csv
 try:
 	psl = open(sys.argv[1])
 	gtf = open(sys.argv[2])
-	# outfilename = sys.argv[3]
+	outfilename = sys.argv[3]
 except:
-	sys.stderr.write('usage: script.py psl gtf > isos_matched.psl \n')
+	sys.stderr.write('usage: script.py psl gtf isos_matched.psl \n')
 	sys.exit(1)
 
 def get_junctions(line):
@@ -61,39 +61,50 @@ annotated_juncs[chrom] += [junctions]
 novel, total = 0, 0
 seenjunctions = {}
 transcript_counts = {}
-for line in psl:
-	line = line.rstrip().split('\t')
-	chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
-	junctions = get_junctions(line)
-	# if chrom not in seenjunctions:
-	# 	seenjunctions[chrom] = []
-	# elif junctions in seenjunctions[chrom]:
-	# 	continue
-	# seenjunctions[chrom] += [junctions]
-	total += 1
-	subset = False
-	transcript = ''
-	oldline9 = line[9]
-	for j,t in annotated_juncs[chrom]:
-		if junctions <= j:
-			subset = True
-			transcript = t
-			break
-	if transcript not in transcript_counts:
-		transcript_counts[transcript] = 0
-	else:
-		transcript_counts[transcript] += 1
-	if not subset:# and junctions not in annotated_juncs[chrom]:
-		novel += 1
-		print('\t'.join([str(l) for l in line]))
-		#print('\t'.join([line[9],line[9]]))
-	else:  # annotated transcript identified
-		if transcript_counts[transcript] == 0:
-			line[9] = transcript + '_' + line[9][line[9].rfind('_')+1:]
+with open(outfilename, 'wt') as outfile:
+	writer = csv.writer(outfile, delimiter='\t')
+	for line in psl:
+		line = line.rstrip().split('\t')
+		chrom, name, start, end = line[13], line[9], int(line[15]), int(line[16])
+		if chrom not in annotated_juncs:
+			continue
+		junctions = get_junctions(line)
+		# if chrom not in seenjunctions:
+		# 	seenjunctions[chrom] = []
+		# elif junctions in seenjunctions[chrom]:
+		# 	continue
+		# seenjunctions[chrom] += [junctions]
+		total += 1
+		subset = False
+		transcript = ''
+		name = line[9]
+		for j,t in annotated_juncs[chrom]:
+			if junctions == j:
+				transcript = t
+				break
+		if transcript not in transcript_counts:
+			transcript_counts[transcript] = 0
 		else:
-			line[9] = transcript + '_' + line[9][line[9].rfind('_')+1:] \
-			 + '-' + str(transcript_counts[transcript])			
-		print('\t'.join([str(l) for l in line]))
-		#print('\t'.join([oldline9, line[9]]))
+			transcript_counts[transcript] += 1
+
+		if not transcript:
+			novel += 1
+			writer.writerow(line)
+		else:  # annotated transcript identified
+			if '-' in name[-3:]:
+				name = name[:name.rfind('-')]
+			if transcript_counts[transcript] == 0:
+				if '_' in name:
+					line[9] = transcript + '_' + name[name.rfind('_')+1:]
+				else:
+					line[9] = transcript + '_' + name
+			else:
+				if '_' in name:
+					line[9] = transcript + '_' + name[name.rfind('_')+1:] \
+					 + '-' + str(transcript_counts[transcript])			
+				else:
+					line[9] = transcript + '_' + name + '-' + str(transcript_counts[transcript])
+			writer.writerow(line)
+			line[9] = name
 sys.stderr.write('{} out of {} isoforms are novel\n'.format(novel, total))
 

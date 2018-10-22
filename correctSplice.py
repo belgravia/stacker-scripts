@@ -57,7 +57,6 @@ class GpHit(object):
     """
     def __init__(self, inline):
         fields = inline.split('\t')
-        # self.printBase = ('\t').join(fields[:8])
         self.fields = fields
         self.qName, self.chrom, self.strand = map(str, fields[:3])
         self.genoStart, self.genoEnd, self.cdsStart, self.cdsEnd, self.blockCount = map(int, fields[3:8])

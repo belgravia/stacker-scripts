@@ -16,7 +16,7 @@ with open(outfilename, 'wt') as outfile:
 			if seqlen:
 				writer.writerow([name, seqlen])
 			name = line[1:]
-			print(name)
+#			print(name)
 
 			seqlen = 0
 			continue
