@@ -84,11 +84,13 @@ for line in psl:
 	if len(blockstarts) == 1:  # single exon transcript has no junctions
 		nojunc += 1
 		continue
-	blocksizes = [int(x) for x in line[18].split(',')[:-1]]
-	blockend = blockstarts[0] + blocksizes[0]
 	if strand != '+' and strand != '-':
 		badstrand += 1
 		continue
+	if chrom not in gtf_info[strand]:
+		continue
+	blocksizes = [int(x) for x in line[18].split(',')[:-1]]
+	blockend = blockstarts[0] + blocksizes[0]
 	for i in range(1, len(blockstarts)):
 		start = blockstarts[i]
 		if start - blockend >= 60 and chrom in gtf_info[strand]:  # junction is [blockend, start) of flanking exons

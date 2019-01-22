@@ -17,7 +17,7 @@ try:
 		gtf = ''
 		gtfused = False
 except:
-	sys.stderr.write('usage: script.py coord.txt genome.fasta out5.txt out3.txt [num_bp_around] [gtf]\n')
+	sys.stderr.write('usage: script.py coord.txt genome.fasta out5.fa out3.fa [num_bp_around] [gtf]\n')
 	sys.stderr.write('txtfile format should be: chr start end strand\n')
 	sys.exit(1)
 
